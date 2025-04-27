@@ -1,0 +1,35 @@
+:root {
+    --bg: #f2f6fa;
+    --fg: #222;
+    --accent: #0077ff;
+  }
+  * {
+    box-sizing: border-box;
+  }
+  body {
+    margin: 0;
+    display: grid;
+    place-items: center;
+    min-height: 100vh;
+    background: var(--bg);
+    font-family: system-ui, sans-serif;
+    color: var(--fg);
+  }
+  .card {
+    text-align: center;
+    padding: 2.5rem 3.5rem;
+    border-radius: 1.25rem;
+    background: #fff;
+    box-shadow: 0 12px 32px rgba(0,0,0,.06);
+  }
+  #temp {
+    font-size: 3.5rem;
+    margin: 0.25rem 0;
+    color: var(--accent);
+  }
+  #wind, time {
+    margin: 0;
+    font-size: 0.9rem;
+    opacity: 0.75;
+  }
+  
