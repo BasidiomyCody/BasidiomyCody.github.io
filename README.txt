@@ -23,7 +23,7 @@ python -m venv .venv
 source .venv/bin/activate          # Windows: .\.venv\Scripts\activate
 pip install -r requirements.txt
 
-# run Flask API on :8000
+# run Flask API on :5000
 python backend/app.py
 In a second terminal:
 
