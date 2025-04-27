@@ -14,7 +14,7 @@ cache_session = requests_cache.CachedSession(
 retry_session = retry(cache_session, retries=5, backoff_factor=0.2)
 openmeteo = openmeteo_requests.Client(session=retry_session)
 
-app = Flask(__name__)
+app = Flask(__name__, static_folder="../frontend", static_url_path="")
 
 
 def fetch_current_weather(lat: float, lon: float):
@@ -42,6 +42,11 @@ def fetch_current_weather(lat: float, lon: float):
 
 
 # ---------- Flask route ----------
+@app.route("/")
+def index():
+    return app.send_static_file("index.html")
+
+
 @app.route("/api/current")
 def current_weather():
     try:
