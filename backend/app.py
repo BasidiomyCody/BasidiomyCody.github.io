@@ -1,10 +1,17 @@
-from flask import Flask
-from flask import jsonify
+from flask import Flask, jsonify, request
 import openmeteo_requests
 import requests_cache
 from retry_requests import retry
+import os
 
-LAT, LON = 42.6791, -70.8417
+DEFAULT_LAT = 40.7128
+DEFAULT_LON = -74.0060
+
+LAT = DEFAULT_LAT
+LON = DEFAULT_LON
+
+# ---------- timezone for Open-Meteo API ----------
+
 TIMEZONE = "America/New_York"
 
 # ---------- open-meteo client with cache ----------
@@ -17,28 +24,36 @@ openmeteo = openmeteo_requests.Client(session=retry_session)
 app = Flask(__name__, static_folder="../frontend", static_url_path="")
 
 
-def fetch_current_weather(lat: float, lon: float):
-    """Call Open-Meteo and return a dict of current weather values."""
+def fetch_current_weather(lat: float, lon: float) -> dict:
     url = "https://api.open-meteo.com/v1/forecast"
     params = {
         "latitude": lat,
         "longitude": lon,
-        "current": "temperature_2m,wind_speed_10m",
-        "timezone": TIMEZONE,
-        "past_days": 0,
+        "current": "temperature_2m,wind_speed_10m,weather_code",
+        "timezone": "auto",
         "forecast_days": 1,
     }
-    response = openmeteo.weather_api(url, params=params)[0]  # single location
-    current = response.Current()
-
+    resp = openmeteo.weather_api(url, params=params)[0]
+    cur = resp.Current()
     return {
-        "latitude": response.Latitude(),
-        "longitude": response.Longitude(),
-        "elevation_m": response.Elevation(),
-        "time": current.Time(),  # ISO timestamp string
-        "temperature_c": current.Variables(0).Value(),
-        "wind_speed_kmh": current.Variables(1).Value(),
+        "time": cur.Time(),
+        "temperature_c": cur.Variables(0).Value(),
+        "wind_speed_kmh": cur.Variables(1).Value(),
+        "weather_code": cur.Variables(2).Value(),
     }
+
+
+def parse_coord(value: str | None, minimum: float, maximum: float) -> float:
+    if value is None:
+        raise ValueError("missing")
+    try:
+        coord = float(value)
+    except ValueError as err:
+        # Preserve original context
+        raise ValueError("not a number") from err
+    if not minimum <= coord <= maximum:
+        raise ValueError("out of range")
+    return coord
 
 
 # ---------- Flask route ----------
@@ -49,10 +64,24 @@ def index():
 
 @app.route("/api/current")
 def current_weather():
+    # 1) extract params if present
+    lat_q = request.args.get("lat")
+    lon_q = request.args.get("lon")
+
+    # 2) try to parse, else fallback to default
     try:
-        data = fetch_current_weather(LAT, LON)
+        lat = parse_coord(lat_q, -90.0, 90.0) if lat_q else DEFAULT_LAT
+        lon = parse_coord(lon_q, -180.0, 180.0) if lon_q else DEFAULT_LON
+    except ValueError as err:
+        # bad request → 400 JSON
+        return jsonify({"error": f"Invalid coordinate: {err}"}), 400
+
+    # 3) fetch from Open-Meteo
+    try:
+        data = fetch_current_weather(lat, lon)
         return jsonify(data)
     except Exception as exc:
+        # upstream error → 502 Bad Gateway
         return jsonify({"error": str(exc)}), 502
 
 

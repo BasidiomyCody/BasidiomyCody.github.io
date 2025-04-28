@@ -1,6 +1,6 @@
 const API = "/api/current";
 const MAPTILER_KEY = "IhXFbEsJkTsqUepcwuNn";
-const startLngLat = [-70.8417, 42.6791];
+const startLonLat = [-70.8417, 42.6791];
 
 // Map Open-Meteo weather_code → Phosphor icon classes
 const iconMap = {
@@ -57,7 +57,7 @@ async function initMap(lat, lon) {
   const map = new maplibregl.Map({
     container: "map",
     style: `https://api.maptiler.com/maps/topo-v2/style.json?key=${MAPTILER_KEY}`,
-    center: [lon, lat],          // [lng, lat]
+    center: [lon, lat],          // [lon, lat]
     zoom: 9,
   });
 
@@ -67,7 +67,7 @@ async function initMap(lat, lon) {
 
   // ---- Draggable marker ----
   const marker = new maplibregl.Marker({ draggable: true })
-    .setLngLat(startingLngLat)
+    .setLonLat(startingLonLat)
     .addTo(map);
 
   // Helper to load weather
@@ -83,21 +83,21 @@ async function initMap(lat, lon) {
 
   // Map click
   map.on("click", (e) => {
-    marker.setLngLat(e.lngLat);
-    refreshWeather(e.lngLat.lat, e.lngLat.lng);
+    marker.setLonLat(e.lonLat);
+    refreshWeather(e.lonLat.lat, e.lonLat.lon);
   });
 
   // Marker drag-end
   marker.on("dragend", () => {
-    const { lat, lng } = marker.getLngLat();
-    refreshWeather(lat, lng);         // your function that re-fetches /api/current
-    map.flyTo({ center: [lng, lat], essential: true });
+    const { lat, lon } = marker.getLonLat();
+    refreshWeather(lat, lon);         // your function that re-fetches /api/current
+    map.flyTo({ center: [lon, lat], essential: true });
   });
 
   // Smooth “fly” when user selects a new point elsewhere
   map.on("click", (e) => {
-    marker.setLngLat(e.lngLat);
-    refreshWeather(e.lngLat.lat, e.lngLat.lng);
+    marker.seLonLat(e.lonLat);
+    refreshWeather(e.lonLat.lat, e.lonLat.lon);
   });
 }
 
