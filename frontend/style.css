@@ -22,6 +22,10 @@
     background: #fff;
     box-shadow: 0 12px 32px rgba(0,0,0,.06);
   }
+  .maplibregl-marker {
+    width: 30px; 
+    height: 30px;
+  }
   #temp {
     font-size: 3.5rem;
     margin: 0.25rem 0;
@@ -31,5 +35,10 @@
     margin: 0;
     font-size: 0.9rem;
     opacity: 0.75;
+  }
+  #map {
+    height: 500px;
+    width: 500px;
+    margin-top: 1.5rem;
   }
   

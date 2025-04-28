@@ -1,8 +1,9 @@
-const API = "http://127.0.0.1:5000/api/current";
+const API = "/api/current";
+const MAPTILER_KEY = "IhXFbEsJkTsqUepcwuNn";
+const startLngLat = [-70.8417, 42.6791];
 
 // Map Open-Meteo weather_code → Phosphor icon classes
 const iconMap = {
-  // see https://open-meteo.com/en/docs
   0: "pi-sun",
   1: "pi-cloud-sun",
   2: "pi-cloud",
@@ -28,7 +29,7 @@ async function renderCard() {
     if (!res.ok) throw new Error(res.statusText);
     const d = await res.json();
 
-    // °C → °F helper (optional)
+    // °C → °F helper
     const cToF = c => (c * 9/5 + 32).toFixed(1);
 
     tempEl.textContent = `${d.temperature_c.toFixed(1)} °C / ${cToF(d.temperature_c)} °F`;
@@ -47,5 +48,60 @@ async function renderCard() {
     windEl.textContent = "Unable to load data.";
   }
 }
+
+async function initMap(lat, lon) {
+  // Wait till MapLibre + MapTiler scripts are loaded
+  await new Promise((r) => window.addEventListener("load", r));
+
+  // ---- MapTiler style helper (topo) ----
+  const map = new maplibregl.Map({
+    container: "map",
+    style: `https://api.maptiler.com/maps/topo-v2/style.json?key=${MAPTILER_KEY}`,
+    center: [lon, lat],          // [lng, lat]
+    zoom: 9,
+  });
+
+  // Disable rotation w/ RMB to keep UX simple
+  map.dragRotate.disable();
+  map.touchZoomRotate.disableRotation();
+
+  // ---- Draggable marker ----
+  const marker = new maplibregl.Marker({ draggable: true })
+    .setLngLat(startingLngLat)
+    .addTo(map);
+
+  // Helper to load weather
+  async function refreshWeather(lat, lon) {
+    const res = await fetch(`${API}?lat=${lat}&lon=${lon}`)
+    .then(r => r.json());
+    const d = await res.json();
+    document.getElementById("temp").textContent =
+      `${d.temperature_c.toFixed(1)} °C`;
+    // …update wind etc…
+
+  }
+
+  // Map click
+  map.on("click", (e) => {
+    marker.setLngLat(e.lngLat);
+    refreshWeather(e.lngLat.lat, e.lngLat.lng);
+  });
+
+  // Marker drag-end
+  marker.on("dragend", () => {
+    const { lat, lng } = marker.getLngLat();
+    refreshWeather(lat, lng);         // your function that re-fetches /api/current
+    map.flyTo({ center: [lng, lat], essential: true });
+  });
+
+  // Smooth “fly” when user selects a new point elsewhere
+  map.on("click", (e) => {
+    marker.setLngLat(e.lngLat);
+    refreshWeather(e.lngLat.lat, e.lngLat.lng);
+  });
+}
+
+
+renderCard().then(() => initMap(42.6791, -70.8417));
 
 window.addEventListener("DOMContentLoaded", renderCard);

@@ -1,9 +1,21 @@
+<!DOCTYPE html>
+<html lang="en">
 <head>
-  <meta charset="utf-8" />
+  <meta charset="UTF-8">
   <title>Ipswich Weather</title>
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <link href="https://unpkg.com/maplibre-gl@3.5.2/dist/maplibre-gl.css" rel="stylesheet"/>
+  <script src="https://unpkg.com/maplibre-gl@3.5.2/dist/maplibre-gl.js" defer></script>
+
+
   <link rel="stylesheet" href="style.css" />
-  <link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.0.4/src/bold/style.css" />
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+    }
+  </style>
 </head>
 <body>
   <main class="card">
@@ -11,8 +23,24 @@
     <h1 id="temp">-- °C</h1>
     <p id="wind">Wind — km/h</p>
     <time id="timestamp">—</time>
-  </main>
-
+    <div id="map"></div>
+</main>
   <script src="script.js"></script>
+  <script>
+    window.addEventListener("load", () => {
+      const MAPTILER_KEY = "IhXFbEsJkTsqUepcwuNn";
+
+      const map = new maplibregl.Map({
+        container: "map",
+        style: `https://api.maptiler.com/maps/satellite/style.json?key=${MAPTILER_KEY}`,
+        center: [-70.8417, 42.6791],
+        zoom: 9
+      });
+
+      map.on("load", () => {
+        console.log("Map ready ✓");
+      });
+    });
+  </script>
 </body>
 </html>
