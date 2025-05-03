@@ -3,44 +3,32 @@
 <head>
   <meta charset="UTF-8">
   <title>Ipswich Weather</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no">
 
-  <link href="https://unpkg.com/maplibre-gl@3.5.2/dist/maplibre-gl.css" rel="stylesheet"/>
-  <script src="https://unpkg.com/maplibre-gl@3.5.2/dist/maplibre-gl.js" defer></script>
+  <link href="https://unpkg.com/maplibre-gl@5.3.1/dist/maplibre-gl.css" rel="stylesheet">
+    <script src="https://unpkg.com/maplibre-gl@5.3.1/dist/maplibre-gl.js"></script>
 
+    <link href="https://cdn.maptiler.com/maptiler-geocoding-control/v2.1.4/style.css" rel="stylesheet">
+    <script src="https://cdn.maptiler.com/maptiler-geocoding-control/v2.1.4/maplibregl.umd.js"></script>
 
   <link rel="stylesheet" href="style.css" />
   <style>
-    body {
-      margin: 0;
-      padding: 0;
-    }
+    body { margin: 0; padding: 0; }
   </style>
 </head>
+
 <body>
   <main class="card">
     <div id="icon" class="pi pi-cloud text-6xl"></div>
     <h1 id="temp">-- °C</h1>
     <p id="wind">Wind — km/h</p>
     <time id="timestamp">—</time>
+    <div id="search"></div>
     <div id="map"></div>
-</main>
-  <script src="script.js"></script>
-  <script>
-    window.addEventListener("load", () => {
-      const MAPTILER_KEY = "IhXFbEsJkTsqUepcwuNn";
+    <pre id="coordinates" class="coordinates" style="display:none;
+     margin-top:.5rem;font-family:monospace"></pre>
 
-      const map = new maplibregl.Map({
-        container: "map",
-        style: `https://api.maptiler.com/maps/satellite/style.json?key=${MAPTILER_KEY}`,
-        center: [-70.8417, 42.6791],
-        zoom: 9
-      });
-
-      map.on("load", () => {
-        console.log("Map ready ✓");
-      });
-    });
-  </script>
+    <script src="script.js"></script>
+  </main>
 </body>
 </html>

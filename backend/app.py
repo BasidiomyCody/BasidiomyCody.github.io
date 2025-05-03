@@ -5,10 +5,10 @@ from retry_requests import retry
 import os
 
 DEFAULT_LAT = 40.7128
-DEFAULT_LON = -74.0060
+DEFAULT_LNG = -74.0060
 
 LAT = DEFAULT_LAT
-LON = DEFAULT_LON
+LNG = DEFAULT_LNG
 
 # ---------- timezone for Open-Meteo API ----------
 
@@ -24,11 +24,11 @@ openmeteo = openmeteo_requests.Client(session=retry_session)
 app = Flask(__name__, static_folder="../frontend", static_url_path="")
 
 
-def fetch_current_weather(lat: float, lon: float) -> dict:
+def fetch_current_weather(lat: float, lng: float) -> dict:
     url = "https://api.open-meteo.com/v1/forecast"
     params = {
         "latitude": lat,
-        "longitude": lon,
+        "longitude": lng,
         "current": "temperature_2m,wind_speed_10m,weather_code",
         "timezone": "auto",
         "forecast_days": 1,
@@ -66,19 +66,19 @@ def index():
 def current_weather():
     # 1) extract params if present
     lat_q = request.args.get("lat")
-    lon_q = request.args.get("lon")
+    lng_q = request.args.get("lng")
 
     # 2) try to parse, else fallback to default
     try:
         lat = parse_coord(lat_q, -90.0, 90.0) if lat_q else DEFAULT_LAT
-        lon = parse_coord(lon_q, -180.0, 180.0) if lon_q else DEFAULT_LON
+        lng = parse_coord(lng_q, -180.0, 180.0) if lng_q else DEFAULT_LNG
     except ValueError as err:
         # bad request → 400 JSON
         return jsonify({"error": f"Invalid coordinate: {err}"}), 400
 
     # 3) fetch from Open-Meteo
     try:
-        data = fetch_current_weather(lat, lon)
+        data = fetch_current_weather(lat, lng)
         return jsonify(data)
     except Exception as exc:
         # upstream error → 502 Bad Gateway

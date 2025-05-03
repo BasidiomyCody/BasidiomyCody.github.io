@@ -1,6 +1,8 @@
 const API = "/api/current";
 const MAPTILER_KEY = "IhXFbEsJkTsqUepcwuNn";
-const startLonLat = [-70.8417, 42.6791];
+const DEFAULT_LAT = 42.6791;
+const DEFAULT_LON = -70.8417;
+const DEFAULT_ZOOM = 10;
 
 // Map Open-Meteo weather_code → Phosphor icon classes
 const iconMap = {
@@ -18,6 +20,8 @@ const iconMap = {
   default: "pi-question"
 };
 
+function cToF(c) { return (c * 9/5 + 32).toFixed(1); }
+
 async function renderCard() {
   const iconEl = document.getElementById("icon");
   const tempEl = document.getElementById("temp");
@@ -25,23 +29,18 @@ async function renderCard() {
   const timeEl = document.getElementById("timestamp");
 
   try {
-    const res = await fetch(API);
+    const res = await fetch(`${API}?lat=${lat}&lon=${lon}`);
     if (!res.ok) throw new Error(res.statusText);
     const d = await res.json();
 
-    // °C → °F helper
-    const cToF = c => (c * 9/5 + 32).toFixed(1);
-
-    tempEl.textContent = `${d.temperature_c.toFixed(1)} °C / ${cToF(d.temperature_c)} °F`;
-    windEl.textContent = `Wind ${d.wind_speed_kmh.toFixed(1)} km/h`;
+    tempEl.textContent =
+      `${d.temperature_c.toFixed(1)} °C / ${cToF(d.temperature_c)} °F`;
+    windEl.textContent = `Wind ${d.wind_speed_kmh.toFixed(1)} km/h`;
     timeEl.textContent = new Date(d.time).toLocaleString(undefined, {
-      hour: "2-digit",
-      minute: "2-digit",
-      weekday: "short"
+      hour: "2-digit", minute: "2-digit", weekday: "short"
     });
 
-    const iconCode = iconMap[d.weather_code] || iconMap.default;
-    iconEl.className = `pi ${iconCode} text-6xl`;
+    iconEl.className = `pi ${iconMap[d.weather_code] ?? iconMap.default} text-6xl`;
   } catch (err) {
     console.error(err);
     tempEl.textContent = "—";
@@ -49,59 +48,79 @@ async function renderCard() {
   }
 }
 
+async function refreshWeather(lat, lon) {
+  // guard clause: if lat or lon are undefined, bail early
+  if (lat === undefined || lon === undefined) {
+    console.warn("refreshWeather called without coordinates");
+    return;
+  }
+  try {
+    const res = await fetch(`${API}?lat=${lat}&lon=${lon}`);
+    if (!res.ok) throw new Error(res.statusText);
+    const d = await res.json();
+
+    document.getElementById("temp").textContent =
+      `${d.temperature_c.toFixed(1)} °C`;
+    document.getElementById("wind").textContent =
+      `Wind ${d.wind_speed_kmh.toFixed(1)} km/h`;
+    document.getElementById("timestamp").textContent =
+      new Date(d.time).toLocaleTimeString();
+  } catch (err) {
+    console.error("Weather fetch failed:", err);
+  }
+}
+
+/* helper: update weather + coordinate read‑out */
+function handlePosition(lat, lon) {
+  const coordBox = document.getElementById("coordinates");
+  coordBox.style.display = "block";
+  coordBox.innerHTML =
+    `Longitude: ${lon.toFixed(5)}<br>Latitude: ${lat.toFixed(5)}`;
+
+  refreshWeather(lat, lon);           // ALWAYS pass coords
+}
+
 async function initMap(lat, lon) {
   // Wait till MapLibre + MapTiler scripts are loaded
   await new Promise((r) => window.addEventListener("load", r));
 
-  // ---- MapTiler style helper (topo) ----
+
+  /* MapLibre instance */
   const map = new maplibregl.Map({
     container: "map",
-    style: `https://api.maptiler.com/maps/topo-v2/style.json?key=${MAPTILER_KEY}`,
-    center: [lon, lat],          // [lon, lat]
-    zoom: 9,
+    style: `https://api.maptiler.com/maps/outdoor-v2/style.json?key=${MAPTILER_KEY}`,
+    center: [lon, lat],   // [lng, lat]
+    zoom: DEFAULT_ZOOM,
   });
 
   // Disable rotation w/ RMB to keep UX simple
   map.dragRotate.disable();
   map.touchZoomRotate.disableRotation();
+  
 
-  // ---- Draggable marker ----
+  /* Draggable marker */
   const marker = new maplibregl.Marker({ draggable: true })
-    .setLonLat(startingLonLat)
+    .setLngLat([lon, lat])
     .addTo(map);
 
-  // Helper to load weather
-  async function refreshWeather(lat, lon) {
-    const res = await fetch(`${API}?lat=${lat}&lon=${lon}`)
-    .then(r => r.json());
-    const d = await res.json();
-    document.getElementById("temp").textContent =
-      `${d.temperature_c.toFixed(1)} °C`;
-    // …update wind etc…
+    /* first fill */
+  handlePosition(lat, lon);
 
-  }
-
-  // Map click
-  map.on("click", (e) => {
-    marker.setLonLat(e.lonLat);
-    refreshWeather(e.lonLat.lat, e.lonLat.lon);
+  /* click moves pin */
+  map.on("click", e => {
+    marker.setLngLat(e.lngLat);
+    const z = map.getZoom();   
+    map.flyTo({ center: e.lngLat, zoom: z, essential: true, duration: 800 });
+    handlePosition(e.lngLat.lat, e.lngLat.lng);
   });
 
-  // Marker drag-end
+  /* drag‑end */
   marker.on("dragend", () => {
-    const { lat, lon } = marker.getLonLat();
-    refreshWeather(lat, lon);         // your function that re-fetches /api/current
-    map.flyTo({ center: [lon, lat], essential: true });
-  });
-
-  // Smooth “fly” when user selects a new point elsewhere
-  map.on("click", (e) => {
-    marker.seLonLat(e.lonLat);
-    refreshWeather(e.lonLat.lat, e.lonLat.lon);
+    const pos = marker.getLngLat();
+    handlePosition(pos.lat, pos.lng);
   });
 }
 
-
-renderCard().then(() => initMap(42.6791, -70.8417));
-
-window.addEventListener("DOMContentLoaded", renderCard);
+document.addEventListener("DOMContentLoaded", () => {
+  initMap(DEFAULT_LAT, DEFAULT_LON);
+});
