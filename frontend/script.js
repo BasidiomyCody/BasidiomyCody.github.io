@@ -1,8 +1,11 @@
 const API = "/api/current";
 const MAPTILER_KEY = "IhXFbEsJkTsqUepcwuNn";
+
 const DEFAULT_LAT = 42.6791;
 const DEFAULT_LON = -70.8417;
 const DEFAULT_ZOOM = 10;
+
+const AQ_VAR = "pm2_5";
 
 // Map Open-Meteo weather_code → Phosphor icon classes
 const iconMap = {
@@ -48,6 +51,17 @@ async function renderCard() {
   }
 }
 
+async function fetchElevation(lat, lon) {
+  // Open‑Meteo Elevation endpoint: one coord → one value
+  const url = `https://api.open-meteo.com/v1/elevation?latitude=${lat}&longitude=${lon}`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error("elevation fetch failed");
+  // returns like { "elevation": [ 33.0 ] }
+  const json = await res.json();
+  return json.elevation?.[0] ?? NaN;
+}
+
+
 async function refreshWeather(lat, lon) {
   // guard clause: if lat or lon are undefined, bail early
   if (lat === undefined || lon === undefined) {
@@ -70,14 +84,45 @@ async function refreshWeather(lat, lon) {
   }
 }
 
-/* helper: update weather + coordinate read‑out */
-function handlePosition(lat, lon) {
+async function fetchAirQuality(lat, lon) {
+  const url = `https://air-quality-api.open-meteo.com/v1/air-quality` +
+              `?latitude=${lat}&longitude=${lon}` +
+              `&hourly=${AQ_VAR}` +
+              `&timezone=UTC&forecast_hours=1&past_hours=1`;
+
+  const res = await fetch(url);
+  if (!res.ok) throw new Error("air‑quality fetch failed");
+  const j = await res.json();
+  // The API returns an array for each hour; pick the last item (current hour)
+  const values = j.hourly?.[AQ_VAR];
+  return values ? values.at(-1) : NaN;
+}
+
+// updates all data in the card
+async function handlePosition(lat, lon) {
   const coordBox = document.getElementById("coordinates");
+
   coordBox.style.display = "block";
   coordBox.innerHTML =
     `Longitude: ${lon.toFixed(5)}<br>Latitude: ${lat.toFixed(5)}`;
 
   refreshWeather(lat, lon);           // ALWAYS pass coords
+
+  document.getElementById("elev").textContent = "Elevation — m";
+  document.getElementById("aqi").textContent  = "PM₂․₅ — µg/m³";
+
+  Promise.allSettled([
+    fetchElevation(lat, lon),          // returns Number or NaN
+    fetchAirQuality(lat, lon)          // returns Number or NaN
+  ]).then(([elevRes, airRes]) => {
+    if (elevRes.status === "fulfilled" && !isNaN(elevRes.value))
+      document.getElementById("elev").textContent =
+        `Elevation ${elevRes.value.toFixed(0)} m`;
+
+    if (airRes.status === "fulfilled" && !isNaN(airRes.value))
+      document.getElementById("aqi").textContent =
+        `PM₂․₅ ${airRes.value.toFixed(1)} µg/m³`;
+  });
 }
 
 async function initMap(lat, lon) {
