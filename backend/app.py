@@ -2,7 +2,6 @@ from flask import Flask, jsonify, request
 import openmeteo_requests
 import requests_cache
 from retry_requests import retry
-import os
 
 DEFAULT_LAT = 40.7128
 DEFAULT_LNG = -74.0060

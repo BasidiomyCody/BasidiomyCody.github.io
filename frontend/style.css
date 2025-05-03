@@ -7,38 +7,24 @@
     box-sizing: border-box;
   }
   body {
+    height: 100%;
     margin: 0;
-    display: grid;
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
     place-items: center;
-    min-height: 100vh;
     background: var(--bg);
     font-family: system-ui, sans-serif;
     color: var(--fg);
-  }
-  .card {
-    text-align: center;
-    width: 100%;
-    padding: 2.5rem 3.5rem;
-    border-radius: 1.25rem;
-    background: #fff;
-    box-shadow: 0 12px 32px rgba(0,0,0,.06);
   }
   .maplibregl-marker {
     width: 20px; 
     height: 20px;
   }
-  .coordinates {
-    background: rgba(0, 0, 0, 0.5);
-    color: #fff;
-    position: absolute;
-    bottom: 40px;
-    left: 10px;
-    padding: 5px 10px;
+  #coordinates {
     margin: 0;
-    font-size: 11px;
-    line-height: 18px;
-    border-radius: 3px;
-    display: none;
+    font-size: 0.9rem;
+    opacity: 0.9;
 }
   #temp {
     font-size: 3.5rem;
@@ -51,9 +37,26 @@
     opacity: 0.75;
   }
   #map {
-    min-height: 500px;
+    position: fixed;        /* take map out of normal flow */
+    top: 0;
+    left: 0;
     width: 100%;
-    border-radius: 1.25rem;
-    margin-top: 1.5rem;
+    height: 100%;
+    z-index: 0;             /* lowest layer */
   }
+  #card {
+    position: fixed;     /* stay in normal flow so you can scroll later */
+    width: 20rem;
+    top: 1rem;
+    left: 1rem;
+    bottom: 1rem;
+    padding: 2rem 2.5rem;
+    border-radius: 1.25rem;
+    background: rgba(255,255,255,0.25);   /* 25% opaque white */
+    box-shadow: 0 12px 32px rgba(0,0,0,.25);
+    backdrop-filter: blur(6px);           /* nice frosted-glass effect */
+    z-index: 10;            /* above the map */
+    text-align: center;
+  }
+  #card h1 { margin: .5rem 0; }
   

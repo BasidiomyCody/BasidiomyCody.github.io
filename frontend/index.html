@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Ipswich Weather</title>
+  <title>Mycolibrium</title>
   <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no">
 
   <link href="https://unpkg.com/maplibre-gl@5.3.1/dist/maplibre-gl.css" rel="stylesheet">
@@ -18,17 +18,16 @@
 </head>
 
 <body>
-  <main class="card">
-    <div id="icon" class="pi pi-cloud text-6xl"></div>
-    <h1 id="temp">-- °C</h1>
-    <p id="wind">Wind — km/h</p>
+  <h1>Mycolibrium</h1>
+  <p>Click on the map to get the current weather at that location.</p>
+  <div id="map"></div>
+  <main id="card">
+    <pre id="coordinates" class="coordinates"></pre>
+    <div id="icon"></div>
+    <h1 id="temp">-- °C</h1>
+    <p id="wind">Wind — km/h</p>
     <time id="timestamp">—</time>
-    <div id="search"></div>
-    <div id="map"></div>
-    <pre id="coordinates" class="coordinates" style="display:none;
-     margin-top:.5rem;font-family:monospace"></pre>
-
-    <script src="script.js"></script>
   </main>
+  <script src="script.js"></script>
 </body>
 </html>
