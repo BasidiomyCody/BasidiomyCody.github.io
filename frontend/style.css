@@ -48,8 +48,8 @@
     position: fixed;     /* stay in normal flow so you can scroll later */
     width: 20rem;
     top: 1rem;
-    left: 1rem;
-    bottom: 1rem;
+    right: 1rem;
+    bottom: 21rem;
     padding: 2rem 2.5rem;
     border-radius: 1.25rem;
     background: rgba(255,255,255,0.25);   /* 25% opaque white */
@@ -57,6 +57,27 @@
     backdrop-filter: blur(6px);           /* nice frosted-glass effect */
     z-index: 10;            /* above the map */
     text-align: center;
+    transition: transform .25s ease;
+  }
+  #card.collapsed{
+    transform: translateX(calc(100% + 2rem));
   }
   #card h1 { margin: .5rem 0; }
+  #card-toggle{
+    position: fixed;
+    top: 1rem;
+    right: 1rem;
+    z-index: 11;                 /* a bit above #card */
+    width: 2.5rem; height: 2.5rem;
+    border: none;
+    border-radius: 50%;
+    background: rgba(255,255,255,.25);
+    box-shadow: 0 2px 8px rgba(0,0,0,.25);
+    cursor: pointer;
+    font: 1.4rem/1 monospace;    /* just shows a symbol */
+    transition: transform .5s ease;
+  }
+  #card-toggle.rotated{          /* flipped when panel is hidden */
+    transform: rotate(180deg);
+  }
   
