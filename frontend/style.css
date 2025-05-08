@@ -80,4 +80,47 @@
   #card-toggle.rotated{          /* flipped when panel is hidden */
     transform: rotate(180deg);
   }
+  #bottom-card{
+    position: fixed;
+    left: 1rem;               
+    right: 1rem;
+    bottom: 1rem;
+    height: 19rem;          
+    padding: 1.5rem 2rem;
   
+    border-radius: 1.25rem 1.25rem 0 0;
+    background: rgba(255,255,255,0.25);
+    box-shadow: 0 -12px 32px rgba(0,0,0,.25);
+    backdrop-filter: blur(6px);
+    z-index: 9;            /* below the top-right card */
+  
+    transform: translateY(100%);   /* start hidden */
+    transition: transform .3s ease;
+  }
+  
+  #bottom-card.open{
+    transform: translateY(0);
+  }
+  
+  /* ───────── toggle button for the sheet ───────── */
+  #bottom-toggle{
+    position: fixed;
+    bottom: 1rem;  /* just above hidden sheet */
+    right: 1rem;
+    z-index: 10;
+  
+    width: 2.5rem; height: 2.5rem;
+    border: none;
+    border-radius: 50%;
+    background: rgba(255,255,255,.9);
+    box-shadow: 0 2px 8px rgba(0,0,0,.25);
+    cursor: pointer;
+    font: 1.4rem/1 monospace;
+    transform: rotate(180deg);     /* arrow “up” while closed */
+    transition: transform .3s ease, bottom .3s ease;
+  }
+  
+  #bottom-toggle.open{
+    transform: rotate(0deg);
+    bottom: 18rem;   /* sits on sheet’s top edge when open */
+  }

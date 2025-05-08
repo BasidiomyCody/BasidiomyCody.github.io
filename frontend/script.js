@@ -413,13 +413,24 @@ async function handlePosition(lat, lon) {
 document.addEventListener("DOMContentLoaded", () => {
   initMap(DEFAULT_LAT, DEFAULT_LON);
 
+  /* existing top-right panel toggle … */
   const card   = document.getElementById("card");
   const toggle = document.getElementById("card-toggle");
-
   toggle.addEventListener("click", () => {
     const collapsed = card.classList.toggle("collapsed");
     toggle.classList.toggle("rotated", collapsed);
     toggle.setAttribute("aria-expanded", !collapsed);
     toggle.title = collapsed ? "Show details" : "Hide details";
+  });
+
+  /* ─── NEW bottom sheet toggle ─── */
+  const sheet      = document.getElementById("bottom-card");
+  const sheetBtn   = document.getElementById("bottom-toggle");
+
+  sheetBtn.addEventListener("click", () => {
+    const open = sheet.classList.toggle("open");
+    sheetBtn.classList.toggle("open", open);
+    sheetBtn.setAttribute("aria-expanded", open);
+    sheetBtn.title = open ? "Hide panel" : "Show more";
   });
 });
