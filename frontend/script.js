@@ -13,6 +13,10 @@ const AQ_VAR = "us_aqi";
 const elevationCache = new Map();
 window.elevationGrid = { type: "FeatureCollection", features: [] };
 
+let allYearsChk;        
+let lastLat = DEFAULT_LAT,
+    lastLon = DEFAULT_LON,
+    lastTemp = null;
 
 /* ------------------------Init --------------------------------------- */
 
@@ -111,23 +115,26 @@ async function fetchLastYearTemps(lat, lon){
     return j.daily.temperature_2m_mean;      // already an array
   }
 
-async function fetchMeanTempsRange(lat, lon, isoStart, isoEnd){
-  const url =
-    `https://api.open-meteo.com/v1/forecast` +
-    `?latitude=${lat}&longitude=${lon}` +
-    `&start_date=${isoStart}&end_date=${isoEnd}` +
-    `&daily=temperature_2m_max,temperature_2m_min` +
-    `&timezone=auto`;
+  const EARLIEST_YEAR = 1979;          // ERA5 starts here – change if you like
 
-  const r = await fetch(url);
-  if(!r.ok) throw new Error("history fetch failed");
-  const j   = await r.json();
-  const { time, temperature_2m_max: hi, temperature_2m_min: lo } = j.daily;
-  return {
-    dates : time,
-    mean  : hi.map((v,i)=> (v+lo[i])/2)
-  };
-}
+  async function fetchWindowForYear(lat, lon, refDate, daysBack, daysFwd, year){
+    const d0 = new Date(refDate);           d0.setDate(d0.getDate()+daysBack);
+    const d1 = new Date(refDate);           d1.setDate(d1.getDate()+daysFwd);
+  
+    d0.setFullYear(year);                   // shift into <year>
+    d1.setFullYear(year);
+  
+    const url = `https://archive-api.open-meteo.com/v1/archive` +
+                `?latitude=${lat}&longitude=${lon}` +
+                `&start_date=${d0.toISOString().slice(0,10)}` +
+                `&end_date=${d1.toISOString().slice(0,10)}` +
+                `&daily=temperature_2m_mean` +
+                `&timezone=auto`;
+  
+    const r = await fetch(url);
+    if(!r.ok) throw new Error(`archive fetch ${year} failed`);
+    return r.json().then(j => j.daily.temperature_2m_mean);
+  }
 
 function compile(gl, vsSource, fsSource) {
   function sh(type, src) {
@@ -149,87 +156,87 @@ function compile(gl, vsSource, fsSource) {
 
 /* ------------------------Chart Functions---------------------------- */
 
-let tempChart;
+let tempChart, lastDates = [];        // <-- keep dates so every dataset aligns
 
-async function updateTempChart(lat, lon, currentTempC){
-  /** current 30 d back + 10 d fwd */
-  const nowRange = await fetchDailyTemps(lat, lon);      // unchanged
+async function updateTempChart(lat, lon, currentTempC, allYears=false){
+  const today   = new Date();
+  const DAYS_BACK = -30, DAYS_FWD = 10;
 
-  /** same window, one year before */
-  const today      = new Date();
-  const startPast  = new Date(today);
-  startPast.setDate( startPast.getDate() - 30 - 365 );
-  const endPast    = new Date(today);
-  endPast.setDate(  endPast.getDate() + 10 - 365 );
-
-  const pad = d => d.toISOString().slice(0,10);          // → “YYYY-MM-DD”
-
-  /* ---------- build / update the chart ---------- */
+  /* ---------- current-year (forecast-capable) window ---------- */
   const { dates, mean } = await fetchDailyTemps(lat, lon);
-  const lastYear        = await fetchLastYearTemps(lat, lon);
+  lastDates = dates;                  // remember for later redraws
 
-  const todayIdx = dates.findIndex(d =>
-        new Date(d).toDateString() === today.toDateString());
+  /* ---------- build datasets array ---------- */
+  const ds = [];
 
-  if(!tempChart){
-    const ctx = document.getElementById("tempChart").getContext("2d");
-    tempChart = new Chart(ctx,{
-      type:"line",
-      data:{
-        labels: dates,
-        datasets:[
-          {                                           // 2025 window
-            label: "2025",
-            data:  mean,
-            borderWidth:2,
-            tension:.25,
-            pointRadius:0,
-            borderColor:"rgb(0,123,255)"
-          },
-          {                                           // 2024 window
-            label:"2024",
-            data: lastYear,
-            borderWidth:2,
-            tension:.25,
-            pointRadius:0,
-            borderColor:"rgba(0,123,255,.35)",
-            borderDash:[6,4],                         // dashed & lighter
-            order: 0                                  // draw underneath
-          },
-          {                                           // Current temperature
-            label:"Current",
-            data: Array(mean.length).fill(null)
-                    .map((_,i)=> i===todayIdx ? currentTempC : null),
-            pointBorderColor:"red",
-            pointBackgroundColor:"red",
-            borderWidth:0,
-            pointRadius:3,
-            showLine:false
-          }
-        ]
-      },
-      options:{
-        scales:{
-          x:{ title:{display:true,text:"Date"}, ticks:{maxRotation:0,autoSkip:true}},
-          y:{ title:{display:true,text:"°C"} }
-        },
-        plugins:{
-          legend:{ position:"top" },
-          tooltip:{ mode:"nearest", intersect:false }
-        }
+  // 1. Current year mean
+  ds.push({
+    label : `${today.getFullYear()}`,
+    data  : mean,
+    borderColor : "rgb(0,123,255)",
+    tension: .25, borderWidth:2, pointRadius:0
+  });
+
+  // 2. Historical years (optionally)
+  if(allYears){
+    const palette = (i,n) => `hsla(210,70%,${85-50*i/n}%,.6)`; // light→dark
+
+    const requests = [];
+    for(let y = today.getFullYear()-1; y >= EARLIEST_YEAR; y--){
+      requests.push(fetchWindowForYear(lat, lon, today, DAYS_BACK, DAYS_FWD, y)
+        .then(arr => ({ year:y, arr })));
+    }
+    const results = await Promise.allSettled(requests);
+
+    let idx = 0;
+    results.forEach(res=>{
+      if(res.status==="fulfilled"){
+        ds.push({
+          label : `${res.value.year}`,
+          data  : res.value.arr,
+          borderColor : palette(idx++, results.length),
+          borderWidth : 1,
+          tension     : .25,
+          pointRadius : 0,
+          order       : 0               // draw underneath the bold line
+        });
       }
     });
   }else{
-    /* just update data */
-    tempChart.data.labels            = dates;
-    tempChart.data.datasets[0].data  = mean;        // current year line
-    tempChart.data.datasets[1].data  = lastYear;    // ← NEW: last-year line
-    tempChart.data.datasets[2].data  =              // red “today” dot
-      Array(mean.length).fill(null).map((_, i) =>
-          i === todayIdx ? currentTempC : null);
-
-    tempChart.update();
+    /* Only last-year line when checkbox off */
+    const prev = await fetchWindowForYear(
+        lat, lon, today, DAYS_BACK, DAYS_FWD, today.getFullYear()-1);
+    ds.push({
+      label : `${today.getFullYear()-1}`,
+      data  : prev,
+      borderColor : "rgba(0,123,255,.35)",
+      borderDash  : [6,4],
+      tension:.25, pointRadius:0, borderWidth:2, order:0
+    });
   }
+
+  // 3. Red dot for “now”
+  const todayIdx = dates.findIndex(d => new Date(d).toDateString() === today.toDateString());
+  ds.push({
+    label: "Current",
+    data : Array(dates.length).fill(null).map((_,i)=> i===todayIdx?currentTempC:null),
+    pointBorderColor:"red",
+    pointBackgroundColor:"red",
+    pointRadius:3, borderWidth:0, showLine:false
+  });
+
+  /* ---------- (re)draw ---------- */
+  if(tempChart){ tempChart.destroy(); }
+  const ctx = document.getElementById("tempChart").getContext("2d");
+  tempChart = new Chart(ctx,{
+    type:"line",
+    data:{ labels: dates, datasets: ds },
+    options:{
+      scales:{ x:{title:{display:true,text:"Date"}, ticks:{maxRotation:0,autoSkip:true}},
+               y:{title:{display:true,text:"°C"}} },
+      plugins:{ legend:{display:false, maxHeight:20}, tooltip:{mode:"nearest",intersect:false} }
+    }
+  });
 }
 
 /* ------------------------Map Functions--------------------------------- */
@@ -519,7 +526,12 @@ async function handlePosition(lat, lon) {
     `Longitude: ${lon.toFixed(5)}<br>Latitude: ${lat.toFixed(5)}`;
 
   const weather = await refreshWeather(lat, lon);   // 👈 grab the data
-  if (weather) updateTempChart(lat, lon, weather.temperature_c);
+  if(weather){
+    lastLat  = lat;
+    lastLon  = lon;
+    lastTemp = weather.temperature_c;
+    updateTempChart(lat, lon, weather.temperature_c, allYearsChk.checked);
+  }
 
   document.getElementById("elev").textContent = "Elevation — m";
   document.getElementById("aqi").textContent  = "PM₂․₅ — µg/m³";
@@ -576,5 +588,13 @@ document.addEventListener("DOMContentLoaded", () => {
     sheetBtn.classList.toggle("open", open);
     sheetBtn.setAttribute("aria-expanded", open);
     sheetBtn.title = open ? "Hide panel" : "Show more";
+  });
+
+  /* ─── Yearly temp history ─── */
+  allYearsChk = document.getElementById("allYearsToggle");   // now assigns
+  allYearsChk.addEventListener("change", () => {
+    if (lastTemp != null) {
+      updateTempChart(lastLat, lastLon, lastTemp, allYearsChk.checked);
+    }
   });
 });

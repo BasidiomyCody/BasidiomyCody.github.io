@@ -21,7 +21,7 @@
 
 <body>
   <h1>Mycolibrium</h1>
-  <p>Click on the map to get the current weather at that location.</p>
+  <p>Click on the map to get the temperature at that location.</p>
   <div id="map"></div>
   
   <button id="card-toggle" aria-expanded="true" title="Hide details">
@@ -40,6 +40,7 @@
     <p id="wind">Wind — km/h</p>
 
     <time id="timestamp">—</time>
+
   </main>
   <button id="bottom-toggle" aria-expanded="false" title="Show more">
     🠝
@@ -47,6 +48,10 @@
   <section id="bottom-card">
     <h2 style="margin-top:0">Temperature – past 30 d &amp; next 10 d</h2>
     <canvas id="tempChart" height="140" width="1000%"></canvas>
+    <label class="years-toggle">
+      <input type="checkbox" id="allYearsToggle">
+      <span>Show Temp History</span>
+    </label>
   </section>
   <script src="script.js"></script>
 </body>
