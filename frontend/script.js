@@ -6,11 +6,13 @@ const DEFAULT_LON = -70.8417;
 const DEFAULT_ZOOM = 12;
 
 const MARKER_RADIUS = 10;             // in miles
+let markerElevation = NaN;
 
 const AQ_VAR = "us_aqi";
+
 const elevationCache = new Map();
 window.elevationGrid = { type: "FeatureCollection", features: [] };
-let markerElevation = NaN;
+
 
 /* ------------------------Init --------------------------------------- */
 
@@ -32,7 +34,7 @@ async function cachedElevation(lat, lon) {
   return a;
 }
 
-/* -----------------------Data Fetching Functions------------------------ */
+/* -----------------------Data Helper Functions------------------------ */
 
 async function fetchElevation(lat, lon) {
   // Open‑Meteo Elevation endpoint: one coord → one value
@@ -73,7 +75,59 @@ async function fetchRainHistory(lat, lon) {
   return { daily, total };        // mm for 30 days
 }
 
-/* ------------------------Map Functions--------------------------------- */
+async function fetchDailyTemps(lat, lon) {
+  const url = `https://api.open-meteo.com/v1/forecast` +
+              `?latitude=${lat}&longitude=${lon}` +
+              `&past_days=30&forecast_days=10` +
+              `&daily=temperature_2m_max,temperature_2m_min` +
+              `&timezone=auto`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error("temp history fetch failed");
+  const j = await res.json();
+  const { time, temperature_2m_max: tMax, temperature_2m_min: tMin } = j.daily;
+
+  // simple mean ⇒ (max+min)/2
+  const mean = tMax.map((v,i) => (v + tMin[i]) / 2);
+  return { dates: time, mean };
+}
+
+async function fetchLastYearTemps(lat, lon){
+    const today      = new Date();
+    const startLast  = new Date(today);  startLast.setDate(startLast.getDate()-30);
+    const endLast    = new Date(today);  endLast.setDate(endLast.getDate()+10);
+    // shift a full year back
+    startLast.setFullYear(startLast.getFullYear()-1);
+    endLast  .setFullYear(endLast  .getFullYear()-1);
+  
+    const url = `https://archive-api.open-meteo.com/v1/archive` +
+                `?latitude=${lat}&longitude=${lon}` +
+                `&start_date=${startLast.toISOString().slice(0,10)}` +
+                `&end_date=${endLast.toISOString().slice(0,10)}` +
+                `&daily=temperature_2m_mean` +
+                `&timezone=auto`;
+    const r = await fetch(url);
+    if(!r.ok) throw new Error("archive fetch failed");
+    const j = await r.json();
+    return j.daily.temperature_2m_mean;      // already an array
+  }
+
+async function fetchMeanTempsRange(lat, lon, isoStart, isoEnd){
+  const url =
+    `https://api.open-meteo.com/v1/forecast` +
+    `?latitude=${lat}&longitude=${lon}` +
+    `&start_date=${isoStart}&end_date=${isoEnd}` +
+    `&daily=temperature_2m_max,temperature_2m_min` +
+    `&timezone=auto`;
+
+  const r = await fetch(url);
+  if(!r.ok) throw new Error("history fetch failed");
+  const j   = await r.json();
+  const { time, temperature_2m_max: hi, temperature_2m_min: lo } = j.daily;
+  return {
+    dates : time,
+    mean  : hi.map((v,i)=> (v+lo[i])/2)
+  };
+}
 
 function compile(gl, vsSource, fsSource) {
   function sh(type, src) {
@@ -92,6 +146,93 @@ function compile(gl, vsSource, fsSource) {
     throw gl.getProgramInfoLog(prog);
   return prog;
 }
+
+/* ------------------------Chart Functions---------------------------- */
+
+let tempChart;
+
+async function updateTempChart(lat, lon, currentTempC){
+  /** current 30 d back + 10 d fwd */
+  const nowRange = await fetchDailyTemps(lat, lon);      // unchanged
+
+  /** same window, one year before */
+  const today      = new Date();
+  const startPast  = new Date(today);
+  startPast.setDate( startPast.getDate() - 30 - 365 );
+  const endPast    = new Date(today);
+  endPast.setDate(  endPast.getDate() + 10 - 365 );
+
+  const pad = d => d.toISOString().slice(0,10);          // → “YYYY-MM-DD”
+
+  /* ---------- build / update the chart ---------- */
+  const { dates, mean } = await fetchDailyTemps(lat, lon);
+  const lastYear        = await fetchLastYearTemps(lat, lon);
+
+  const todayIdx = dates.findIndex(d =>
+        new Date(d).toDateString() === today.toDateString());
+
+  if(!tempChart){
+    const ctx = document.getElementById("tempChart").getContext("2d");
+    tempChart = new Chart(ctx,{
+      type:"line",
+      data:{
+        labels: dates,
+        datasets:[
+          {                                           // 2025 window
+            label: "2025",
+            data:  mean,
+            borderWidth:2,
+            tension:.25,
+            pointRadius:0,
+            borderColor:"rgb(0,123,255)"
+          },
+          {                                           // 2024 window
+            label:"2024",
+            data: lastYear,
+            borderWidth:2,
+            tension:.25,
+            pointRadius:0,
+            borderColor:"rgba(0,123,255,.35)",
+            borderDash:[6,4],                         // dashed & lighter
+            order: 0                                  // draw underneath
+          },
+          {                                           // Current temperature
+            label:"Current",
+            data: Array(mean.length).fill(null)
+                    .map((_,i)=> i===todayIdx ? currentTempC : null),
+            pointBorderColor:"red",
+            pointBackgroundColor:"red",
+            borderWidth:0,
+            pointRadius:3,
+            showLine:false
+          }
+        ]
+      },
+      options:{
+        scales:{
+          x:{ title:{display:true,text:"Date"}, ticks:{maxRotation:0,autoSkip:true}},
+          y:{ title:{display:true,text:"°C"} }
+        },
+        plugins:{
+          legend:{ position:"top" },
+          tooltip:{ mode:"nearest", intersect:false }
+        }
+      }
+    });
+  }else{
+    /* just update data */
+    tempChart.data.labels            = dates;
+    tempChart.data.datasets[0].data  = mean;        // current year line
+    tempChart.data.datasets[1].data  = lastYear;    // ← NEW: last-year line
+    tempChart.data.datasets[2].data  =              // red “today” dot
+      Array(mean.length).fill(null).map((_, i) =>
+          i === todayIdx ? currentTempC : null);
+
+    tempChart.update();
+  }
+}
+
+/* ------------------------Map Functions--------------------------------- */
 
 async function initMap(lat, lon) {
   // Wait till MapLibre + MapTiler scripts are loaded
@@ -362,6 +503,8 @@ async function refreshWeather(lat, lon) {
       `Wind ${d.wind_speed_kmh.toFixed(1)} km/h`;
     document.getElementById("timestamp").textContent =
       new Date(d.time).toLocaleTimeString();
+    
+    return d;
   } catch (err) {
     console.error("Weather fetch failed:", err);
   }
@@ -375,7 +518,8 @@ async function handlePosition(lat, lon) {
   coordBox.innerHTML =
     `Longitude: ${lon.toFixed(5)}<br>Latitude: ${lat.toFixed(5)}`;
 
-  refreshWeather(lat, lon);           // ALWAYS pass coords
+  const weather = await refreshWeather(lat, lon);   // 👈 grab the data
+  if (weather) updateTempChart(lat, lon, weather.temperature_c);
 
   document.getElementById("elev").textContent = "Elevation — m";
   document.getElementById("aqi").textContent  = "PM₂․₅ — µg/m³";
@@ -413,7 +557,7 @@ async function handlePosition(lat, lon) {
 document.addEventListener("DOMContentLoaded", () => {
   initMap(DEFAULT_LAT, DEFAULT_LON);
 
-  /* existing top-right panel toggle … */
+  /* Top-right panel toggle … */
   const card   = document.getElementById("card");
   const toggle = document.getElementById("card-toggle");
   toggle.addEventListener("click", () => {
@@ -423,7 +567,7 @@ document.addEventListener("DOMContentLoaded", () => {
     toggle.title = collapsed ? "Show details" : "Hide details";
   });
 
-  /* ─── NEW bottom sheet toggle ─── */
+  /* ─── Bottom sheet toggle ─── */
   const sheet      = document.getElementById("bottom-card");
   const sheetBtn   = document.getElementById("bottom-toggle");
 

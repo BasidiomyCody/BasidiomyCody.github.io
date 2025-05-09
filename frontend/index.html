@@ -6,10 +6,12 @@
   <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no">
 
   <link href="https://unpkg.com/maplibre-gl@5.3.1/dist/maplibre-gl.css" rel="stylesheet">
-    <script src="https://unpkg.com/maplibre-gl@5.3.1/dist/maplibre-gl.js"></script>
+  <script src="https://unpkg.com/maplibre-gl@5.3.1/dist/maplibre-gl.js"></script>
 
-    <link href="https://cdn.maptiler.com/maptiler-geocoding-control/v2.1.4/style.css" rel="stylesheet">
-    <script src="https://cdn.maptiler.com/maptiler-geocoding-control/v2.1.4/maplibregl.umd.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+  <link href="https://cdn.maptiler.com/maptiler-geocoding-control/v2.1.4/style.css" rel="stylesheet">
+  <script src="https://cdn.maptiler.com/maptiler-geocoding-control/v2.1.4/maplibregl.umd.js"></script>
 
   <link rel="stylesheet" href="style.css" />
   <style>
@@ -43,9 +45,8 @@
     🠝
   </button>
   <section id="bottom-card">
-    <!-- Put whatever you like here -->
-    <h2>Extra information</h2>
-    <p>This panel can hold charts, forecasts, etc.</p>
+    <h2 style="margin-top:0">Temperature – past 30 d &amp; next 10 d</h2>
+    <canvas id="tempChart" height="140" width="1000%"></canvas>
   </section>
   <script src="script.js"></script>
 </body>
