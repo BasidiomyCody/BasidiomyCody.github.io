@@ -5,11 +5,25 @@
   <title>Mycolibrium</title>
   <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no">
 
+  <!-- MapLibre -->
   <link href="https://unpkg.com/maplibre-gl@5.3.1/dist/maplibre-gl.css" rel="stylesheet">
   <script src="https://unpkg.com/maplibre-gl@5.3.1/dist/maplibre-gl.js"></script>
 
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <!-- Chart.js -->
+  <!-- 1) Luxon itself (date-time lib) -->
+  <script src="https://cdn.jsdelivr.net/npm/luxon@3/build/global/luxon.min.js"></script>
 
+  <!-- 2) Chart.js (must be *before* the adapter) -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.js"></script>
+
+  <!-- 3) Luxon <-> Chart adapter -->
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-luxon@1/dist/chartjs-adapter-luxon.umd.js"></script>
+
+  <!-- 4) Annotation plugin – UMD build that sets window.ChartAnnotation  -->
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@1.4.0/dist/chartjs-plugin-annotation.min.js"></script>
+
+
+  <!-- MapTiler Geocoding Control -->
   <link href="https://cdn.maptiler.com/maptiler-geocoding-control/v2.1.4/style.css" rel="stylesheet">
   <script src="https://cdn.maptiler.com/maptiler-geocoding-control/v2.1.4/maplibregl.umd.js"></script>
 
@@ -46,12 +60,16 @@
     🠝
   </button>
   <section id="bottom-card">
-    <h2 style="margin-top:0">Temperature – past 30 d &amp; next 10 d</h2>
+    <h2 style="margin-top:0">Mean Daily Temperature (°F) – 30-Day Window (-20, +10)</h2>
     <canvas id="tempChart" height="140" width="1000%"></canvas>
-    <label class="years-toggle">
-      <input type="checkbox" id="allYearsToggle">
-      <span>Show Temp History</span>
-    </label>
+    <div class="slider-wrap">
+      <label for="years-slider">Show data from </label>
+      <input  type="range" id="years-slider"
+              min="0"
+              step="1"
+              value="41"> 
+      <span id="years-output">2020 to 2025</span>
+    </div>
   </section>
   <script src="script.js"></script>
 </body>

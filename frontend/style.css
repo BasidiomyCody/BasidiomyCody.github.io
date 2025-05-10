@@ -25,7 +25,7 @@
     margin: 0;
     font-size: 0.9rem;
     opacity: 0.9;
-}
+  }
   #temp {
     font-size: 3.5rem;
     margin: 0.25rem 0;
@@ -67,17 +67,17 @@
     position: fixed;
     top: 1rem;
     left: 20rem;
-    z-index: 11;                 /* a bit above #card */
+    z-index: 12;                 /* a bit above #card */
     width: 2.5rem; height: 2.5rem;
     border: none;
     border-radius: 50%;
     background: rgba(255,255,255,1.0);
     box-shadow: 0 2px 8px rgba(0,0,0,.25);
     cursor: pointer;
-    font: 1.4rem/1 monospace;    /* just shows a symbol */
+    font: 1.4rem/1 monospace;
     transition: transform .3s ease, left .3s ease;
   }
-  #card-toggle.rotated{          /* flipped when panel is hidden */
+  #card-toggle.rotated{
     transform: rotate(180deg);
     left: 1rem;
   }
@@ -92,22 +92,19 @@
     background: rgba(255,255,255,0.25);
     box-shadow: 0 -12px 32px rgba(0,0,0,.25);
     backdrop-filter: blur(6px);
-    z-index: 9;            /* below the top-right card */
+    z-index: 10;
   
-    transform: translateY(100%);   /* start hidden */
+    transform: translateY(100%);
     transition: transform .3s ease;
   }
-  
   #bottom-card.open{
     transform: translateY(0);
   }
-  
-  /* ───────── toggle button for the sheet ───────── */
   #bottom-toggle{
     position: fixed;
-    bottom: 1rem;  /* just above hidden sheet */
+    bottom: 1rem;
     left: 1rem;
-    z-index: 10;
+    z-index: 12;
     width: 2.5rem; height: 2.5rem;
     border: none;
     border-radius: 50%;
@@ -115,24 +112,22 @@
     box-shadow: 0 2px 8px rgba(0,0,0,.25);
     cursor: pointer;
     font: 1.4rem/1 monospace;
-    transform: rotate(0deg);     /* arrow “up” while closed */
+    transform: rotate(0deg);
     transition: transform .3s ease, bottom .3s ease;
   }
-  
   #bottom-toggle.open{
     transform: rotate(180deg);
-    bottom: 18rem;   /* sits on sheet’s top edge when open */
+    bottom: 18rem;
   }
-
-  .years-toggle{
-    position: absolute;         
-    right: 1rem;
+  .slider-wrap{
+    display: flex;
+    position: fixed;
     top: 1rem;
-    font: 14px/1.2 sans-serif;
-    color: "black";
-    user-select: none;
+    right: 1rem;
+    gap: .5rem;
+    font: 1.4rem/1 monospace;
   }
-  .years-toggle input{ 
-    accent-color: #0af; 
-    margin-inline-end:.35rem; 
+  #years-slider{ 
+    flex: 1; 
+    accent-color: #007bff; 
   }

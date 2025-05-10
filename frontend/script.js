@@ -1,3 +1,5 @@
+/* ------------------------Init --------------------------------------- */
+
 const API = "/api/current";
 const MAPTILER_KEY = "IhXFbEsJkTsqUepcwuNn";
 
@@ -5,22 +7,20 @@ const DEFAULT_LAT = 42.6791;
 const DEFAULT_LON = -70.8417;
 const DEFAULT_ZOOM = 12;
 
-const MARKER_RADIUS = 10;             // in miles
-let markerElevation = NaN;
+const roundKey   = (lat,lon) => `${lat.toFixed(2)},${lon.toFixed(2)}`;       //  ~10 km grid
+const today      = new Date();
+const DAYS_BACK  = -20, DAYS_FWD = 10;
+const CURRENT_YEAR   = today.getFullYear();
+const MAX_YEAR_BACK = 1979;
+const YEARS_AVAILABLE = CURRENT_YEAR - MAX_YEAR_BACK; 
+
+const tempCache  = new Map();
+let selectedYears = 5;
+let activeKey    = null; 
+
+const MARKER_RADIUS = 10;                                                    // in miles
 
 const AQ_VAR = "us_aqi";
-
-const elevationCache = new Map();
-window.elevationGrid = { type: "FeatureCollection", features: [] };
-
-let allYearsChk;        
-let lastLat = DEFAULT_LAT,
-    lastLon = DEFAULT_LON,
-    lastTemp = null;
-
-/* ------------------------Init --------------------------------------- */
-
-
 
 /* ------------------------Utility Functions--------------------------- */
 
@@ -31,7 +31,7 @@ function debounce(fn, ms) {
 }
 
 async function cachedElevation(lat, lon) {
-  const key = `${lat.toFixed(3)},${lon.toFixed(3)}`;  // round → coarser cache
+  const key = `${lat.toFixed(3)},${lon.toFixed(3)}`;                         // round → coarser cache
   if (elevationCache.has(key)) return elevationCache.get(key);
   const a = await fetchElevation(lat, lon);
   elevationCache.set(key, a);
@@ -82,7 +82,7 @@ async function fetchRainHistory(lat, lon) {
 async function fetchDailyTemps(lat, lon) {
   const url = `https://api.open-meteo.com/v1/forecast` +
               `?latitude=${lat}&longitude=${lon}` +
-              `&past_days=30&forecast_days=10` +
+              `&past_days=20&forecast_days=10` +
               `&daily=temperature_2m_max,temperature_2m_min` +
               `&timezone=auto`;
   const res = await fetch(url);
@@ -94,28 +94,6 @@ async function fetchDailyTemps(lat, lon) {
   const mean = tMax.map((v,i) => (v + tMin[i]) / 2);
   return { dates: time, mean };
 }
-
-async function fetchLastYearTemps(lat, lon){
-    const today      = new Date();
-    const startLast  = new Date(today);  startLast.setDate(startLast.getDate()-30);
-    const endLast    = new Date(today);  endLast.setDate(endLast.getDate()+10);
-    // shift a full year back
-    startLast.setFullYear(startLast.getFullYear()-1);
-    endLast  .setFullYear(endLast  .getFullYear()-1);
-  
-    const url = `https://archive-api.open-meteo.com/v1/archive` +
-                `?latitude=${lat}&longitude=${lon}` +
-                `&start_date=${startLast.toISOString().slice(0,10)}` +
-                `&end_date=${endLast.toISOString().slice(0,10)}` +
-                `&daily=temperature_2m_mean` +
-                `&timezone=auto`;
-    const r = await fetch(url);
-    if(!r.ok) throw new Error("archive fetch failed");
-    const j = await r.json();
-    return j.daily.temperature_2m_mean;      // already an array
-  }
-
-  const EARLIEST_YEAR = 1979;          // ERA5 starts here – change if you like
 
   async function fetchWindowForYear(lat, lon, refDate, daysBack, daysFwd, year){
     const d0 = new Date(refDate);           d0.setDate(d0.getDate()+daysBack);
@@ -156,88 +134,149 @@ function compile(gl, vsSource, fsSource) {
 
 /* ------------------------Chart Functions---------------------------- */
 
-let tempChart, lastDates = [];        // <-- keep dates so every dataset aligns
+async function buildTempCache(lat, lon){
+  activeKey = roundKey(lat,lon);
+  const store = new Map();
 
-async function updateTempChart(lat, lon, currentTempC, allYears=false){
-  const today   = new Date();
-  const DAYS_BACK = -30, DAYS_FWD = 10;
+  /* 2 .1  Current year (includes 10-day forecast) */
+  const cur = await fetchDailyTemps(lat, lon);
+  store.set(CURRENT_YEAR, cur.mean);                                          // keep both arrays
 
-  /* ---------- current-year (forecast-capable) window ---------- */
-  const { dates, mean } = await fetchDailyTemps(lat, lon);
-  lastDates = dates;                  // remember for later redraws
+  lastDates = cur.dates;                                                      // remember for redraws
 
-  /* ---------- build datasets array ---------- */
-  const ds = [];
-
-  // 1. Current year mean
-  ds.push({
-    label : `${today.getFullYear()}`,
-    data  : mean,
-    borderColor : "rgb(0,123,255)",
-    tension: .25, borderWidth:2, pointRadius:0
-  });
-
-  // 2. Historical years (optionally)
-  if(allYears){
-    const palette = (i,n) => `hsla(210,70%,${85-50*i/n}%,.6)`; // light→dark
-
-    const requests = [];
-    for(let y = today.getFullYear()-1; y >= EARLIEST_YEAR; y--){
-      requests.push(fetchWindowForYear(lat, lon, today, DAYS_BACK, DAYS_FWD, y)
-        .then(arr => ({ year:y, arr })));
-    }
-    const results = await Promise.allSettled(requests);
-
-    let idx = 0;
-    results.forEach(res=>{
-      if(res.status==="fulfilled"){
-        ds.push({
-          label : `${res.value.year}`,
-          data  : res.value.arr,
-          borderColor : palette(idx++, results.length),
-          borderWidth : 1,
-          tension     : .25,
-          pointRadius : 0,
-          order       : 0               // draw underneath the bold line
-        });
-      }
-    });
-  }else{
-    /* Only last-year line when checkbox off */
-    const prev = await fetchWindowForYear(
-        lat, lon, today, DAYS_BACK, DAYS_FWD, today.getFullYear()-1);
-    ds.push({
-      label : `${today.getFullYear()-1}`,
-      data  : prev,
-      borderColor : "rgba(0,123,255,.35)",
-      borderDash  : [6,4],
-      tension:.25, pointRadius:0, borderWidth:2, order:0
-    });
+  /* 2 .2  All past years back to 1979  */
+  const reqs = [];
+  
+  for(let y = CURRENT_YEAR-1; y >= MAX_YEAR_BACK; y--){
+    reqs.push(
+      fetchWindowForYear(lat,lon,today,DAYS_BACK,DAYS_FWD,y)
+        .then(arr => store.set(y, arr))                                       // keep the array in the Map 
+        .catch(console.warn)                                                  // keep going on failures
+    );
   }
 
-  // 3. Red dot for “now”
-  const todayIdx = dates.findIndex(d => new Date(d).toDateString() === today.toDateString());
-  ds.push({
-    label: "Current",
-    data : Array(dates.length).fill(null).map((_,i)=> i===todayIdx?currentTempC:null),
-    pointBorderColor:"red",
-    pointBackgroundColor:"red",
-    pointRadius:3, borderWidth:0, showLine:false
+  await Promise.all(reqs);                                                    // wait until *all* complete
+
+  /* 2 .3  Commit to the outer cache */
+  tempCache.set(activeKey, store);
+
+  /* 2 .4  If the user hasn’t moved meanwhile ⇒ redraw with slider range */
+  if (activeKey === roundKey(lastLat,lastLon))
+      updateTempChart(lastLat, lastLon, lastTempC, selectedYears, /*useCache*/true);
+}
+
+let tempChart, lastDates = [];                                                // <-- keep dates so every dataset aligns
+let lastLat, lastLon, lastTempC;
+
+async function updateTempChart(
+  lat, lon, currentTempC,
+  yearsWindow = 1,                                                            // 0 ⇒ all years
+  useCache    = false) {
+
+  const todayISO = today.toISOString().slice(0,10);
+  const key = roundKey(lat, lon);
+  let   seriesMap = tempCache.get(key);      // Map<year , mean[40]>
+
+  /********************* 1. make sure we HAVE some data ****************/
+  if (!useCache || !seriesMap) {
+    /* quick 2-year fallback so the UI isn’t empty while cache builds */
+    seriesMap = new Map();
+
+    /* current year (fast; includes 10-day forecast) */
+    const { dates, mean: curMean } = await fetchDailyTemps(lat, lon);
+    seriesMap.set(CURRENT_YEAR, curMean);
+    if (!dates.includes(todayISO)) {
+      dates.push(todayISO);           // append the missing day
+      mean .push(null);               // keep datasets aligned
+    }
+    lastDates = dates;
+
+    /* last year only */
+    const prevMean = await fetchWindowForYear(
+      lat, lon, today, DAYS_BACK, DAYS_FWD, CURRENT_YEAR - 1);
+    seriesMap.set(CURRENT_YEAR - 1, prevMean);
+  }
+
+  /* if we came from the real cache but have no dates yet → grab them once */
+  if (!lastDates.length) {
+    lastDates = (await fetchDailyTemps(lat, lon)).dates;
+  }
+
+  /********************* 2. decide which years to plot *****************/
+  let years = [CURRENT_YEAR];                   // always show the blue line
+  for (let i = 0; i < yearsWindow; i++) {
+    const y = CURRENT_YEAR - 1 - i;
+    if (seriesMap.has(y)) years.push(y);
+  }
+  years.sort((a, b) => a - b);                  // oldest → newest
+
+  /********************* 3. build Chart.js datasets ********************/
+  const ds = years.map((y, idx) => {
+    const bold = (y === CURRENT_YEAR);
+    return {
+      label       : `${y}`,
+      data        : seriesMap.get(y),
+      borderColor : bold
+                  ? "rgb(0, 123, 255)"                       // bright blue
+                  : `rgba(0, ${123 + (122 / years.length) * (CURRENT_YEAR - y)}, ${255 - (255 / years.length) * (CURRENT_YEAR - y)}, ${0.8 - (0.8 / years.length) * (CURRENT_YEAR - y)})`,
+      borderWidth : bold ? 2 : 1,
+      borderDash  : [],
+      tension     : .25,
+      pointRadius : 0,
+      order       : bold ? 1 : 0     // draw current year on top
+    };
   });
 
-  /* ---------- (re)draw ---------- */
-  if(tempChart){ tempChart.destroy(); }
-  const ctx = document.getElementById("tempChart").getContext("2d");
-  tempChart = new Chart(ctx,{
-    type:"line",
-    data:{ labels: dates, datasets: ds },
-    options:{
-      scales:{ x:{title:{display:true,text:"Date"}, ticks:{maxRotation:0,autoSkip:true}},
-               y:{title:{display:true,text:"°C"}} },
-      plugins:{ legend:{display:false, maxHeight:20}, tooltip:{mode:"nearest",intersect:false} }
+ /*------------------- 4. Today’s vertical line ----------------------*/
+
+  const annotationCfg = {
+    annotations: {
+      todayLine: {
+        type : 'line',
+        xMin : todayISO,
+        xMax : todayISO,
+        borderColor : 'red',
+        borderWidth : 1,
+        borderDash  : [6, 4],
+        label: {
+          content : currentTempC.toFixed(1) + " °C",
+          enabled : true,
+          position: 'start',
+          backgroundColor: 'rgba(0,0,0,.6)',
+          color : '#fff',
+          yAdjust: -6,
+          font : { size: 10, weight: 'bold' }
+        }
+      }
     }
+  };
+
+  /********************* 5. (re)draw the chart ************************/
+  if (tempChart) tempChart.destroy();
+
+  const ctx = document.getElementById("tempChart").getContext("2d");
+  tempChart = new Chart(ctx, {
+    type   : "line",
+    data   : { labels: lastDates, datasets: ds },
+    options: {
+    scales : {
+        x: {
+          type : 'time',
+          time : { unit: 'day', tooltipFormat: 'MMM d' },
+          title: { display: true, text: "Date" },
+          ticks: { maxRotation: 0, autoSkip: true }
+        },
+        y: { title: { display: true, text: "°C" } }
+      },
+      plugins:{
+        legend : { position: "top", display: false },
+        tooltip: { mode: "nearest", intersect: false },
+        annotation: annotationCfg          // <- wrapped correctly now
+      }
+     }
   });
 }
+
 
 /* ------------------------Map Functions--------------------------------- */
 
@@ -263,8 +302,6 @@ async function initMap(lat, lon) {
   const marker = new maplibregl.Marker({ draggable: true })
     .setLngLat([lon, lat])
     .addTo(map);
-
-    /* first fill */
   handlePosition(lat, lon);
 
 
@@ -281,7 +318,7 @@ async function initMap(lat, lon) {
         
           onAdd: function (m, gl) {
             this.map = m;
-            // ----- tiny passthrough shaders -----
+            // ----- Passthrough Shaders -----
             const vs = `#version 300 es
               layout(location=0) in vec2 a_pos;        // screen-px of marker
               uniform float u_ptSize;                  // diameter in px
@@ -344,103 +381,6 @@ async function initMap(lat, lon) {
       }
     }
   }, 1500);
-  
-  const buildElevationLayer = debounce(async () => {
-    const bounds = map.getBounds();
-    const rows = 10, cols = 10;     // 100 samples → far fewer calls
-    const feats = [];
-  
-    const dLat = (bounds.getNorth() - bounds.getSouth()) / rows;
-    const dLon = (bounds.getEast() - bounds.getWest()) / cols;
-  
-    for (let r = 0; r < rows; r++) {
-      const lat = bounds.getNorth() - (r + 0.5) * dLat;
-      for (let c = 0; c < cols; c++) {
-        const lon = bounds.getWest() + (c + 0.5) * dLon;
-        feats.push(
-          cachedElevation(lat, lon).then(elevation => ({
-            type: "Feature",
-            geometry: { type: "Point", coordinates: [lon, lat] },
-            properties: { elevation }
-          }))
-        );
-      }
-    }
-  
-    const geojson = { type: "FeatureCollection", features: await Promise.all(feats) };
-
-    window.elevationGrid = geojson;    // make grid visible to render()
-
-    if (!map.getLayer("elevation-custom")) {
-      if (!map.getLayer("elevation-custom")) {
-        map.addLayer({
-          id: "elevation-custom",
-          type: "custom",
-          renderingMode: "2d",
-      
-          onAdd: function (map, gl) {
-            this.map = map;                 // keep reference
-            this.gl  = gl;
-            this.program = null;
-            this.buffer  = gl.createBuffer();
-          },
-      
-          render: function (gl) {
-            const vSrc = `#version 300 es
-                          layout(location = 0) in vec2  a_pos;          // pixel coords   (x,y)
-                          layout(location = 1) in float a_elevation;    // elevation    
-                          uniform vec2 u_viewSize;                      // canvas [w,h]    – set from JS
-                          out float v_elevation;
-                          void main() {
-                            v_elevation = 1000.0/a_elevation;
-                            gl_PointSize = v_elevation/100.0;                 // splat radius in px
-                            gl_Position  = vec4(
-                                2.0 * a_pos.x / u_viewSize.x - 1.0,
-                                1.0 - 2.0 * a_pos.y / u_viewSize.y,
-                                0.0, 1.0);
-                          }`;
-            const fSrc = `#version 300 es
-                          precision mediump float;
-                          in  float v_elevation;
-                          out vec4  fragColor;
-                          void main(){
-                            float d = length(gl_PointCoord - 0.5);      // circular fade
-                            if (d > 0.5) discard;
-                            float w = 1.0 - smoothstep(0.0, 0.5, d);    // soft edge
-                            float g = clamp(v_elevation * 0.5, 0.0, 1.0);  // greyscale value
-                            fragColor = vec4(g, g, g, w);                  // r,g,b,a    ← 4 comps
-                          }`;
-            this.program  = compile(gl, vSrc, fSrc);
-            this.uSizeLoc = gl.getUniformLocation(this.program,"u_viewSize");
-      
-            /* --- pack fresh data into buffer --- */
-            const pts = window.elevationGrid.features.flatMap(f => {
-              const [lng,lat] = f.geometry.coordinates;
-              const p = this.map.project([lng,lat]);       // to pixel space
-              return [p.x, p.y, f.properties.elevation];
-            });
-            gl.bindBuffer(gl.ARRAY_BUFFER, this.buffer);
-            gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(pts), gl.DYNAMIC_DRAW);
-      
-            gl.useProgram(this.program);
-            gl.uniform2f(this.uSizeLoc, gl.canvas.width, gl.canvas.height);
-
-            gl.enableVertexAttribArray(0);                // a_pos
-            gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 12, 0);
-
-            gl.enableVertexAttribArray(1);                // a_rel
-            gl.vertexAttribPointer(1, 1, gl.FLOAT, false, 12, 8);
-
-            gl.drawBuffers([gl.BACK]);                    // avoid MRT warning
-            gl.drawArrays(gl.POINTS, 0, pts.length / 3);  // 3 floats per vertex
-          }
-        });
-      } else {
-        map.triggerRepaint();          // update existing layer
-      }
-    }
-  }, 1500);
-
 
   //----------Map Events
   map.on("click", e => {
@@ -450,19 +390,14 @@ async function initMap(lat, lon) {
     handlePosition(e.lngLat.lat, e.lngLat.lng);
   });
 
-  //map.on("load", buildElevationLayer);      // first paint
-  //map.on("moveend", buildElevationLayer);   // repaint when user pans / zooms
-
-  map.on("load", buildCircleLayer);      // first paint
-  map.on("moveend", buildCircleLayer);   // repaint when user pans / zooms
+  //map.on("load", buildCircleLayer);      // first paint
+  //map.on("moveend", buildCircleLayer);   // repaint when user pans / zooms
 
   //-----------Marker Events
   marker.on("dragend", () => {
     const pos = marker.getLngLat();
     handlePosition(pos.lat, pos.lng);
   });
-
-
 }
 
 /* ------------------------Update Functions---------------------------- */
@@ -526,12 +461,17 @@ async function handlePosition(lat, lon) {
     `Longitude: ${lon.toFixed(5)}<br>Latitude: ${lat.toFixed(5)}`;
 
   const weather = await refreshWeather(lat, lon);   // 👈 grab the data
-  if(weather){
-    lastLat  = lat;
-    lastLon  = lon;
-    lastTemp = weather.temperature_c;
-    updateTempChart(lat, lon, weather.temperature_c, allYearsChk.checked);
-  }
+  if (weather){
+        lastLat   = lat;
+        lastLon   = lon;
+        lastTempC = weather.temperature_c;
+    
+        /* Immediately draw with 1-year data so the UI feels snappy … */
+        updateTempChart(lat, lon, lastTempC, selectedYears, /*useCache*/false);
+    
+        /* …then (re)build the cache in the background.                */
+        buildTempCache(lat, lon);
+      }
 
   document.getElementById("elev").textContent = "Elevation — m";
   document.getElementById("aqi").textContent  = "PM₂․₅ — µg/m³";
@@ -567,11 +507,21 @@ async function handlePosition(lat, lon) {
 /* -----------------------Event Listeners------------------------ */
 
 document.addEventListener("DOMContentLoaded", () => {
+  
+  const luxonAdapter  = window['chartjs-adapter-luxon'];           // auto-registers, but keep for safety
+
+  if (window.ChartAnnotation) Chart.register(window.ChartAnnotation); 
+  
+  /* (the adapter self-registers on load, but won’t hurt if we do this) */
+  if (luxonAdapter) Chart.register(luxonAdapter);
+  
+  /* now it’s safe to build charts */
   initMap(DEFAULT_LAT, DEFAULT_LON);
 
   /* Top-right panel toggle … */
   const card   = document.getElementById("card");
   const toggle = document.getElementById("card-toggle");
+
   toggle.addEventListener("click", () => {
     const collapsed = card.classList.toggle("collapsed");
     toggle.classList.toggle("rotated", collapsed);
@@ -591,10 +541,25 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   /* ─── Yearly temp history ─── */
-  allYearsChk = document.getElementById("allYearsToggle");   // now assigns
-  allYearsChk.addEventListener("change", () => {
-    if (lastTemp != null) {
-      updateTempChart(lastLat, lastLon, lastTemp, allYearsChk.checked);
+  const slider   = document.getElementById("years-slider");
+  const outYears = document.getElementById("years-output");
+
+  slider.max = YEARS_AVAILABLE;
+
+  /* live feedback while dragging */
+  slider.addEventListener("input", () => {
+    selectedYears = +(YEARS_AVAILABLE - slider.value);                // 0 ⇒ “This year”
+    const firstYear = CURRENT_YEAR - selectedYears;
+    outYears.textContent = selectedYears === 0 ? "---just 2025" : `${firstYear} to 2025`;
+  });
+
+  /* actually refresh the chart when drag finished */
+  slider.addEventListener("change", () => {
+    if (lastLat !== undefined) {
+      updateTempChart(
+        lastLat, lastLon, lastTempC,
+        selectedYears, /*useCache*/ true
+      );
     }
   });
 });
