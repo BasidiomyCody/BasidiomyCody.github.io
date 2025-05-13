@@ -59,18 +59,23 @@
   <button id="bottom-toggle" aria-expanded="false" title="Show more">
     🠝
   </button>
-  <section id="bottom-card">
-    <h2 style="margin-top:0">Mean Daily Temperature (°F) – 30-Day Window (-20, +10)</h2>
-    <canvas id="tempChart" height="140" width="1000%"></canvas>
-    <div class="slider-wrap">
-      <label for="years-slider">Show data from </label>
-      <input  type="range" id="years-slider"
-              min="0"
-              step="1"
-              value="41"> 
-      <span id="years-output">2020 to 2025</span>
+  <section id="bottom-card">    
+    <h2 style="margin-top:0" top="0rem" align="center">Historical Data</h2>
+    <canvas id="leftChart" height="120" width="600%"></canvas>
+    <div class="metric-wrap">
+        <label for="metric-select">Show </label>
+        <select id="metric-select">
+            <option value="temp">Mean Temperature</option>
+            <option value="rh">Rel. Humidity</option>
+        </select>
+        <label for="years-output">from </label>
+        <span id="years-output">2020 to 2025</span>
+        <input  type="range" id="years-slider"
+                min="0"
+                step="1"
+                value="41">
     </div>
   </section>
-  <script src="script.js"></script>
+  <script type="module" src="main.js"></script>
 </body>
 </html>

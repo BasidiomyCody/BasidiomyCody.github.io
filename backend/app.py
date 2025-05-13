@@ -58,7 +58,7 @@ def parse_coord(value: str | None, minimum: float, maximum: float) -> float:
 # ---------- Flask route ----------
 @app.route("/")
 def index():
-    return app.send_static_file("index.html")
+    return app.send_static_file("map.html")
 
 
 @app.route("/api/current")
