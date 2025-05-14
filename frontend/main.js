@@ -1,4 +1,4 @@
-import { METRICS } from './metrics.js';
+import { CHART_METRICS, CURRENT_METRICS } from './metrics.js';
 
 /* ------------------------ CONSTANTS -------------------------------- */
 // ------------------------ API
@@ -10,10 +10,12 @@ const DEFAULT_LAT = 42.6791;
 const DEFAULT_LON = -70.8417;
 const DEFAULT_ZOOM = 12;
 
+let lastLat, lastLon, lastTempC;
+
 // ------------------------ CHARTS
 const TODAY = new Date();
 const CURRENT_YEAR   = TODAY.getFullYear();
-const MAX_YEAR_BACK = 1979;
+const MAX_YEAR_BACK = 2000; // 20 years of history (max is 1979)
 const DAYS_BACK = 20;         // 20 days of history
 const DAYS_FWD  = 10;         // 10 days of forecast
 const YEARS_AVAILABLE = CURRENT_YEAR - MAX_YEAR_BACK; 
@@ -22,9 +24,6 @@ let YEARS_BACK = 5;
 
 // ------------------------ SHADERS
 const MARKER_RADIUS = 10;       // in miles
-
-// ------------------------ AIR QUALITY
-const AQ_VAR = "us_aqi";
 
 
 /* ------------------------  UTILITY  -------------------------------- */
@@ -38,6 +37,8 @@ function debounce(fn, ms) {
 // ------------------------ DATA CONVERSION
 // --TEMP
 function cToF(c) { return (c * 9/5 + 32).toFixed(1); }
+
+const average = arr => arr.reduce((a,b)=>a+b,0)/arr.length;
 
 // --CHARTS
 const q = (lat,lon)=> `latitude=${lat}&longitude=${lon}`;
@@ -66,91 +67,111 @@ function compile(gl, vsSource, fsSource) {
 
 /* ---------------------------- LEFT CARD ------------------------------ */
 // ------------------------ HELPERS
-async function fetchElevation(lat, lon) {
-  // Open‑Meteo Elevation endpoint: one coord → one value
-  const url = `https://api.open-meteo.com/v1/elevation?latitude=${lat}&longitude=${lon}`;
-  const res = await fetch(url);
-  if (!res.ok) throw new Error("elevation fetch failed");
-  // returns like { "elevation": [ 33.0 ] }
-  const json = await res.json();
-  return json.elevation?.[0] ?? NaN;
-}
+const fetchElevation   = (lat,lon)=>fetchMetric('elevation', lat, lon);
+const fetchAirQuality  = (lat,lon)=>fetchMetric('airQuality', lat, lon);
+const fetchRainHistory = (lat,lon)=>fetchMetric('rainLast30', lat, lon);
 
-async function fetchAirQuality(lat, lon) {
-  const url = `https://air-quality-api.open-meteo.com/v1/air-quality` +
-              `?latitude=${lat}&longitude=${lon}` +
-              `&hourly=${AQ_VAR}` +
-              `&timezone=UTC&forecast_hours=1&past_hours=1`;
-
-  const res = await fetch(url);
-  if (!res.ok) throw new Error("air‑quality fetch failed");
-  const j = await res.json();
-  // The API returns an array for each hour; pick the last item (current hour)
-  const values = j.hourly?.[AQ_VAR];
-  return values ? values.at(-1) : NaN;
-}
-
-async function fetchRainHistory(lat, lon) {
-  const url = `https://api.open-meteo.com/v1/forecast`
-            + `?latitude=${lat}&longitude=${lon}`
-            + `&daily=precipitation_sum`
-            + `&past_days=30&forecast_days=0`
-            + `&timezone=UTC`;
-
-  const res = await fetch(url);
-  if (!res.ok) throw new Error("rain history failed");
-  const j = await res.json();
-  const daily = j.daily?.precipitation_sum ?? [];
-  const total = daily.reduce((a, b) => a + b, 0);
-  return { daily, total };        // mm for 30 days
+async function fetchMetric(metric, lat, lon){
+    const cfg = CURRENT_METRICS[metric];
+    if (!cfg) throw new Error(`Unknown metric '${metric}'`);
+  
+    const res  = await fetch(cfg.url({lat,lon}));
+    if (!res.ok) throw new Error(`${metric} fetch failed (${res.status})`);
+  
+    return cfg.parse(await res.json());
 }
 
 /* ------------------------ BOTTOM CARD ---------------------------- */
 // ------------------------ HELPERS
-export async function fetchWindow(metric, lat, lon, past = DAYS_BACK, fut = DAYS_FWD){
-  const m = METRICS[metric];
-  const url = `https://api.open-meteo.com/v1/forecast?${q(lat,lon)}`
-            + `&past_days=${past}&forecast_days=${fut}`
-            + `&daily=${m.dailyVars}&timezone=auto`;
-  const { daily } = await (await fetch(url)).json();
-  const data  = daily.time.map((_,i)=> m.toMean(daily,i));
-  return { dates: daily.time, data };
+function isHourly(metric){ return !!CHART_METRICS[metric].hourlyVars; }
+
+/* --- forecast window ---------------------------------------------- */
+async function fetchWindow(metric, lat, lon, past=DAYS_BACK, fut=DAYS_FWD){
+  const m = CHART_METRICS[metric];
+
+  const base = `https://api.open-meteo.com/v1/forecast?${q(lat,lon)}`
+             + `&timezone=auto`
+             + `&past_days=${past}&forecast_days=${fut}`;
+
+  const url  = base + (
+        isHourly(metric)
+      ? `&hourly=${m.hourlyVars}`
+      : `&daily=${m.dailyVars}`
+  );
+
+  const json = await (await fetch(url)).json();
+
+  /* pick the right bucket and aggregate to daily if needed */
+  if (isHourly(metric)){
+      const { time, [m.hourlyVars]:vals } = json.hourly;
+      /* group 24 values → one mean per day */
+      const byDay = {};
+      time.forEach((iso,i)=>{
+        const day = iso.slice(0,10);
+        (byDay[day]??=[]).push(vals[i]);
+      });
+      const dates = Object.keys(byDay);
+      const data  = dates.map(d=> average(byDay[d]));
+      return { dates, data };
+  } else {
+      const { daily } = json;
+      const data = daily.time.map((_,i)=> m.toMean(daily,i));
+      return { dates: daily.time, data };
+  }
 }
 
-export async function fetchArchive(metric, lat, lon, year){
-    const m  = METRICS[metric];
-    const d0 = new Date(year, TODAY.getMonth(), TODAY.getDate() - DAYS_BACK);
-    const d1 = new Date(year, TODAY.getMonth(), TODAY.getDate() + DAYS_FWD);
+async function fetchArchive(metric, lat, lon, year){
+    const m = CHART_METRICS[metric];
+    const d0 = new Date(year, TODAY.getMonth(), TODAY.getDate()-DAYS_BACK);
+    const d1 = new Date(year, TODAY.getMonth(), TODAY.getDate()+DAYS_FWD);
+    const [start,end] = d0<d1 ? [d0,d1] : [d1,d0];
   
-    const [start, end] = d0 < d1 ? [d0, d1] : [d1, d0];
+    const base = `https://archive-api.open-meteo.com/v1/archive?${q(lat,lon)}`
+               + `&start_date=${iso(start)}&end_date=${iso(end)}`
+               + `&timezone=auto`;
   
-    const url = `https://archive-api.open-meteo.com/v1/archive?${q(lat,lon)}` +
-                `&start_date=${iso(start)}&end_date=${iso(end)}` +
-                `&daily=${m.archiveVars}&timezone=auto`;
-
-    const daily = (await (await fetch(url)).json()).daily;
-    return daily.time.map((_,i)=> m.toMeanArc(daily,i));
+    const url  = base + (
+          isHourly(metric)
+        ? `&hourly=${m.hourlyVars}`
+        : `&daily=${m.archiveVars}`
+    );
+  
+    const json = await (await fetch(url)).json();
+  
+    if (isHourly(metric)){
+        const { time, [m.hourlyVars]:vals } = json.hourly;
+        const byDay={}, data=[];
+        time.forEach((iso,i)=>{
+          const day = iso.slice(0,10);
+          (byDay[day]??=[]).push(vals[i]);
+        });
+        Object.keys(byDay).forEach(d=> data.push( average(byDay[d]) ));
+        return data;
+    } else {
+        const { daily } = json;
+        return daily.time.map((_,i)=> m.toMeanArc(daily,i));
+    }
 }
+  
+  
 
 // ------------------------ LEFT CHART
-let lastLat, lastLon, lastTempC;
-
 const seriesCache = new Map();       // key = `${metric}_${loc}`
 const iso = d => d.toISOString().slice(0,10);
 
 let leftChart, chartDates=[];      // reuse old canvas id
 
-let currentMetric = 'temp';
+let currentMetric = 'temp_2m';
 $('#metric-select').addEventListener('change', e=>{
    currentMetric = e.target.value;
-   if(lastLat) drawChart(currentMetric,lastLat,lastLon,YEARS_BACK,lastTempC);
+   if(lastLat) drawChart(currentMetric,lastLat,lastLon,YEARS_BACK);
 });
 
 $('#years-slider').addEventListener("change", slider=>{
     YEARS_BACK = +(YEARS_AVAILABLE - slider.target.value);
     //console.log(YEARS_BACK);
     if (lastLat) {
-        drawChart(currentMetric, lastLat, lastLon, YEARS_BACK, lastTempC);
+        drawChart(currentMetric, lastLat, lastLon, YEARS_BACK);
     }
 });
 
@@ -186,9 +207,9 @@ async function ensureCache(metric, lat, lon, yearsBack){
     return store;
 }
 
-async function drawChart(metric, lat, lon, yearsBack, currentTempC){
+async function drawChart(metric, lat, lon, yearsBack){
   const store = await ensureCache(metric,lat,lon,YEARS_BACK);
-  const meta  = METRICS[metric];
+  const meta  = CHART_METRICS[metric];
 
   // build ordered year list
   const years = [CURRENT_YEAR,...Array.from({length:yearsBack},(_,i)=>CURRENT_YEAR-1-i)]
@@ -200,7 +221,7 @@ async function drawChart(metric, lat, lon, yearsBack, currentTempC){
       borderColor : i ? `hsla(210,70%,${85-60*i/years.length}%,.6)`
                       : meta.color,
       borderWidth : i ? 1 : 2,
-      pointRadius : 0, tension:.25
+      pointRadius : 0, tension:.3
   }));
 
   // TODAY line
@@ -211,9 +232,9 @@ async function drawChart(metric, lat, lon, yearsBack, currentTempC){
               borderColor:'red', borderWidth:1, borderDash:[6,4],
               label: {
                 content : "Today",
-                enabled : true,
+                enabled : false,
                 position: 'start',
-                backgroundColor: 'rgba(0,0,0,.6)',
+                backgroundColor: 'rgba(0,0,0,.4)',
                 color : '#fff',
                 yAdjust: -6,
                 font : { size: 10, weight: 'bold' }
@@ -221,7 +242,7 @@ async function drawChart(metric, lat, lon, yearsBack, currentTempC){
             }
     }
   };
-
+  document.querySelector('#chart-title').textContent = meta.label;
   leftChart?.destroy();
   leftChart = new Chart(
       document.getElementById('leftChart'),
@@ -346,8 +367,8 @@ async function initMap(lat, lon) {
     handlePosition(e.lngLat.lat, e.lngLat.lng);
   });
 
-  //map.on("load", buildCircleLayer);      // first paint
-  //map.on("moveend", buildCircleLayer);   // repaint when user pans / zooms
+  map.on("load", buildCircleLayer);      // first paint
+  map.on("moveend", buildCircleLayer);   // repaint when user pans / zooms
 
   // --------------------- MARKER EVENTS
   marker.on("dragend", () => {
@@ -399,7 +420,7 @@ async function handlePosition(lat, lon) {
         lastTempC = weather.temperature_c;
     
         /* Immediately draw with 1-year data so the UI feels snappy … */
-        drawChart(currentMetric, lat, lon, YEARS_BACK, lastTempC);
+        drawChart(currentMetric, lat, lon, YEARS_BACK);
     
       }
 
@@ -412,13 +433,14 @@ async function handlePosition(lat, lon) {
     fetchRainHistory(lat, lon)
   ]).then(([elevRes, aqiRes, rainRes]) => {
     if (elevRes.status === "fulfilled" && !isNaN(elevRes.value)) {
+        document.getElementById("elev").textContent = `Elevation ${elevRes.value.toFixed(0)} m`;
     }
     if (aqiRes.status === "fulfilled" && !isNaN(aqiRes.value)) {
       const aqiVal = aqiRes.value;
       const aqiEl  = document.getElementById("aqi");
       document.getElementById("aqi").textContent =
         `PM₂․₅ ${aqiVal.toFixed(1)} µg/m³`;
-      aqiEl.textContent = `U.S. AQI ${aqiVal}`;
+      aqiEl.textContent = `U.S. AQI: ${aqiVal}`;
       aqiEl.style.color =
         aqiVal <= 50  ? "#2ecc71" :
         aqiVal <=100  ? "#f1c40f" :
@@ -426,8 +448,8 @@ async function handlePosition(lat, lon) {
                           "#e74c3c";
     }  
     if (rainRes.status === "fulfilled")
-      document.getElementById("rain30").textContent =
-        `Rain 30 d ${rainRes.value.total.toFixed(0)} mm`;
+      document.getElementById("rainLast30").textContent =
+        `Last 30d Rain Accu.: ${rainRes.value.total.toFixed(0)} mm`;
   });
 }
 
@@ -477,7 +499,7 @@ document.addEventListener("DOMContentLoaded", () => {
   slider.addEventListener("input", () => {
     YEARS_BACK = +(YEARS_AVAILABLE - slider.value);            // 0 ⇒ “This year”
     const firstYear = CURRENT_YEAR - YEARS_BACK;
-    outYears.textContent = YEARS_BACK === 0 ? "uh just 2025" : `${firstYear} to 2025`;
+    outYears.textContent = YEARS_BACK === 0 ? "from uh just 2025" : `from ${firstYear} to 2025`;
   });
 
 });
