@@ -2,7 +2,7 @@ import { CHART_METRICS, CURRENT_METRICS } from './metrics.js';
 
 /* ------------------------ CONSTANTS -------------------------------- */
 // ------------------------ API
-const API = "/map/api";
+const API = "/api";
 const MAPTILER_KEY = "IhXFbEsJkTsqUepcwuNn";
 
 // ------------------------ MAP
