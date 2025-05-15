@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Mycolibrium</title>
+  <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no">
+
+  <!-- MapLibre -->
+  <link href="https://unpkg.com/maplibre-gl@5.3.1/dist/maplibre-gl.css" rel="stylesheet">
+  <script src="https://unpkg.com/maplibre-gl@5.3.1/dist/maplibre-gl.js"></script>
+
+  <!-- Chart.js -->
+  <!-- 1) Luxon itself (date-time lib) -->
+  <script src="https://cdn.jsdelivr.net/npm/luxon@3/build/global/luxon.min.js"></script>
+
+  <!-- 2) Chart.js (must be *before* the adapter) -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.js"></script>
+
+  <!-- 3) Luxon <-> Chart adapter -->
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-luxon@1/dist/chartjs-adapter-luxon.umd.js"></script>
+
+  <!-- 4) Annotation plugin – UMD build that sets window.ChartAnnotation  -->
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@1.4.0/dist/chartjs-plugin-annotation.min.js"></script>
+
+
+  <!-- MapTiler Geocoding Control -->
+  <link href="https://cdn.maptiler.com/maptiler-geocoding-control/v2.1.4/style.css" rel="stylesheet">
+  <script src="https://cdn.maptiler.com/maptiler-geocoding-control/v2.1.4/maplibregl.umd.js"></script>
+
+  <link rel="stylesheet" href="style.css" />
+  <style>
+    body { margin: 0; padding: 0; }
+  </style>
+</head>
+
+<body>
+  <h1>Mycolibrium</h1>
+  <p>Click on the map to get weather data at that location.</p>
+  <div id="map"></div>
+
+  <a id="map-logo" href="/" target="_blank" rel="noopener">
+    <img src="Mycolibrium_logo.png" alt="Mycolibrium" />
+  </a>
+  
+  <button id="card-toggle" aria-expanded="true" title="Hide details">
+    🠜
+  </button>
+  <main id="card">
+    <p id="elev">Elevation — m</p>
+    
+    <div id="icon"></div>
+    <h1 id="temp">-- °C</h1>
+
+    <p id="rainLast30">Rain 30 d — mm</p>
+
+    <p id="aqi">PM₂․₅ — µg/m³</p>
+    <p id="wind">Wind — km/h</p>
+
+    <time id="timestamp">—</time>
+
+  </main>
+  <button id="bottom-toggle" aria-expanded="false" title="Show more">
+    🠝
+  </button>
+  <section id="bottom-card">
+    <div id="bottom-card-header" style="margin-top:0" top=".5rem" align="center">    
+        <h2 id="chart-title" style="margin:0" align="center">30-Day Mean Daily Temperature</h2>
+        <pre id="coordinates" class="coordinates" top="1rem"></pre>
+    </div>
+    <div id="bottom-card-body">
+        <canvas id="leftChart" height="94%" width="586%"></canvas>
+        <div id="bottom-card-right-panel">
+            <div class="metric-wrap">
+                <label for="metric-select">Show </label>
+                <select id="metric-select">
+                    <option value="temp_2m">Mean Temp.</option>
+                    <option value="relhum_2m">Rel. Humidity</option>
+                    <option value="soiltemp_0">Soil Temp.</option>
+                    <option value="soilmstr_0_1">Soil Moist.</option>
+                </select>
+                <span id="years-output">from 2020 to 2025</span>
+                <input  type="range" id="years-slider"
+                        min="0"
+                        step="1"
+                        value="41">
+            </div>
+        </div>
+    </div>
+  </section>
+  <script type="module" src="main.js"></script>
+</body>
+</html>
