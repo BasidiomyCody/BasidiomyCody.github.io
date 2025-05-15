@@ -2,7 +2,8 @@ import { CHART_METRICS, CURRENT_METRICS } from './metrics.js';
 
 /* ------------------------ CONSTANTS -------------------------------- */
 // ------------------------ API
-const API = "/api";
+const API = (lat,lon) => `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}` 
+                      +  `&current_weather=true&timezone=auto`;
 const MAPTILER_KEY = "IhXFbEsJkTsqUepcwuNn";
 
 // ------------------------ MAP
@@ -387,7 +388,7 @@ async function refreshWeather(lat, lon) {
   }
 
   try {
-    const res = await fetch(`${API}?lat=${lat}&lon=${lon}`);
+    const res = await fetch(API(lat,lon));
     if (!res.ok) throw new Error(res.statusText);
     const d = await res.json();
 
