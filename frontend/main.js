@@ -2,12 +2,12 @@ import { CHART_METRICS, CURRENT_METRICS } from './metrics.js';
 
 /* ------------------------ CONSTANTS -------------------------------- */
 // ------------------------ API
-const API = "/api/current";
+const API = (lat,lon) => `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}` + `&current_weather=true&timezone=auto`;
 const MAPTILER_KEY = "IhXFbEsJkTsqUepcwuNn";
 
 // ------------------------ MAP
-const DEFAULT_LAT = 42.6791;
-const DEFAULT_LON = -70.8417;
+const DEFAULT_LAT = 42.68405;
+const DEFAULT_LON = -70.89926;
 const DEFAULT_ZOOM = 12;
 
 let lastLat, lastLon, lastTempC;
@@ -387,18 +387,19 @@ async function refreshWeather(lat, lon) {
   }
 
   try {
-    const res = await fetch(`${API}?lat=${lat}&lon=${lon}`);
+    const res = await fetch(API(lat,lon));
     if (!res.ok) throw new Error(res.statusText);
     const d = await res.json();
+    const cw = d.current_weather; 
 
     document.getElementById("temp").textContent =
-      `${d.temperature_c.toFixed(1)} °C`;
+      `${cw.temperature.toFixed(1)} °C`;
     document.getElementById("wind").textContent =
-      `Wind ${d.wind_speed_kmh.toFixed(1)} km/h`;
+      `Wind ${cw.windspeed.toFixed(1)} km/h`;
     document.getElementById("timestamp").textContent =
-      new Date(d.time).toLocaleTimeString();
+       new Date(cw.time).toLocaleTimeString();
     
-    return d;
+    return cw;
   } catch (err) {
     console.error("Weather fetch failed:", err);
   }
