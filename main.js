@@ -391,13 +391,14 @@ async function refreshWeather(lat, lon) {
     const res = await fetch(API(lat,lon));
     if (!res.ok) throw new Error(res.statusText);
     const d = await res.json();
+    const cw = d.current_weather; 
 
     document.getElementById("temp").textContent =
-      `${d.temperature_c.toFixed(1)} °C`;
+      `${cw.temperature.toFixed(1)} °C`;
     document.getElementById("wind").textContent =
-      `Wind ${d.wind_speed_kmh.toFixed(1)} km/h`;
+      `Wind ${cw.windspeed.toFixed(1)} km/h`;
     document.getElementById("timestamp").textContent =
-      new Date(d.time).toLocaleTimeString();
+       new Date(cw.time).toLocaleTimeString();
     
     return d;
   } catch (err) {
