@@ -276,7 +276,7 @@ body.home{
     top:-70rem;                      /* start further up …              */
     height:calc(100% + 80rem);       /* …and grow by +20 rem on top+bottom */
     left:0; right:0;
-    background:url("./pics/forest_stump_thin.jpg") center/cover no-repeat;
+    background:url("./images/forest_stump_thin.jpg") center/cover no-repeat;
     transition:transform 1.5s ease;
   }
   
