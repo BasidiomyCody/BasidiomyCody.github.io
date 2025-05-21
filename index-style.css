@@ -1,0 +1,292 @@
+/* ---------- general reset / typography ---------- */
+:root{
+    --bg:#283618;
+    --fg:#fefae0;
+    --accent:#606c38;
+  }
+  *{
+    box-sizing:border-box;
+  }
+  html{
+    height:100%;
+  }
+  body{
+    height:100%;
+    margin:0;
+    display:flex;
+    align-items:flex-start;
+    justify-content:center;
+    place-items:center;
+    background:var(--bg);
+    font-family:system-ui,sans-serif;
+    color:var(--fg);
+  }
+  
+  /* ---------- home ---------- */
+body.home{
+    --fg:#f5f7fb;
+    --bg:#606c38;
+    --accent:#283618;
+    margin:0;
+    font-family:"Inter",system-ui,sans-serif;
+    color:var(--fg);
+    background:var(--bg);
+    line-height:1.5;
+    display:flex;
+    flex-direction:column;
+    min-height:100vh;
+  }
+  
+  /* ---------- hero ---------- */
+  #hero{
+    display:flex;
+    position:fixed;
+    flex-direction:column;
+    align-items: center;
+    justify-content:center;
+    text-align:center;
+    outline-color: rgba(255,255,255,0.9);
+    outline-width: 1.5rem;
+    outline-style: solid;
+    background: rgba(255,255,255,0.0);   /* 25% opaque white */
+    box-shadow: 0 12px 32px rgba(0,0,0,.25);
+    backdrop-filter: blur(0px);
+    border-radius: 0.0rem;
+    width: 33.3%;
+    height: 75%;
+    transition: transform 1s ease-in-out;
+    overflow:hidden;
+    z-index: 10;
+  }
+  #hero.collapsed{
+    transform: translateY(calc(-100% - 10rem));
+  }
+  .hero-title{
+    font-size:clamp(2.5rem,5vw,4rem);
+    font-weight:700;
+    margin:0;
+  }
+  .accent{color:var(--accent);}
+  .hero-sub-1{
+    margin:.5rem 0 .5rem;
+    font-size:1.25rem;
+    font-weight:300;
+    opacity:.8;
+  }
+  .hero-sub-2{
+    margin:.5rem 0 .5rem;
+    font-size:1.5rem;
+    font-weight:500;
+    opacity:.8;
+  }
+  #btn-ghost{
+    display:inline-block;
+    cursor:pointer;
+    margin:7rem 0 0;
+    padding:1.25rem 1.5rem;
+    border:2px solid var(--accent);
+    border-radius:9999px;
+    text-decoration:none;
+    color:var(--fg);
+    font-weight:500;
+    transition:all .25s ease;
+  }
+  #btn-ghost:hover{
+    background:var(--bg);
+    color:#fff;
+    transform:translateY(-2px);
+  }
+  
+  /* ---------- work section ---------- */
+  #work{
+    flex:1;
+    display:flex;
+    position:fixed;
+    flex-direction:column;
+    align-items: center;
+    text-align:center;
+    z-index: 1;
+    left: 0;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    transition: transform 1.15s ease-in-out;
+    transform-origin: bottom;
+  }
+  #work.collapsed{
+    transform:translateY(calc(+100% + 20rem));
+  }
+  #about-frame{
+    flex:1;
+    display:flex;
+    position:fixed;
+    flex-direction:column;
+    outline-color: rgba(255,255,255,.9);
+    outline-width: 1.5rem;
+    outline-style: solid;
+    background: rgba(0, 0, 0, 0.1);   /* 25% opaque white */
+    box-shadow: 0 12px 32px rgba(0,0,0,.25);
+    backdrop-filter: blur(10px);
+    border-radius: 0.0rem;
+    left: 6.6%;
+    width: 33.3%;
+    height: 75%;
+    top: 12.5%;
+    z-index: 5;
+    overflow: hidden;
+  }
+  #work-frame{
+    flex:1;
+    display:flex;
+    position:fixed;
+    flex-direction:column;
+    left: 46.6%;
+    right: 6.6%;
+    height: 85%;
+    top: 7.5%;
+    z-index: 5;
+    overflow: hidden;
+  }
+  #about-pic{
+    position: fixed;
+    display: flex;
+    align-self: center;
+    top: 8rem;
+    width: 40%;
+    height: 200px;
+    object-fit: cover;
+    object-position: center center;
+    z-index: 10;
+  }
+  .about-text{
+    position: fixed;
+    display: flex;
+    padding-top: 26rem;
+    margin:.5rem 5rem .5rem;
+    font-size:1.5rem;
+    font-weight:300;
+    opacity:.8;
+  }
+  #work-btn-ghost{
+    position: relative;
+    cursor:pointer;
+    margin:1rem 0 0;
+    top: 2rem;
+    right: -45%;
+    padding:1.25rem 1.5rem;
+    border:2px solid var(--accent);
+    border-radius:9999px;
+    color:var(--fg);
+    backdrop-filter: blur(5px);
+    transition:all .25s ease;
+  }
+  #work-btn-ghost:hover{
+    background:var(--bg);
+    color:#fff;
+    transform:translateY(+2px);
+  }
+  #section-title{
+    position:fixed;
+    align-self: center;
+    margin:3rem 5rem 1rem;
+    font-size:1.75rem;
+    font-weight:500;
+  }
+  /* gallery grid */
+  #projects{
+    position: relative;
+    align-self: center;
+    top: 8rem;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);   /* 1 fixed column */
+    max-height: 60vh; 
+    overflow-y: auto;         /* scrollable if too many cards */
+    gap: 8rem;
+  }
+  /* make it mobile-friendly */
+  @media (max-width: 768px){
+    #projects{ grid-template-columns: repeat(2, 1fr); }   /* tablets: 2 cols */
+  }
+  @media (max-width: 480px){
+    #projects{ grid-template-columns: 1fr; }              /* phones: 1 col  */
+  }
+  /* card appearance */
+  .card{
+    position: relative;
+    overflow: hidden;
+    border-radius: 1rem;
+    box-shadow: 0 6px 16px rgba(0,0,0,.18);
+    background: #fff;
+    transition: transform .3s ease, box-shadow .3s ease;
+  }
+  
+  .card img{
+    display: block;
+    width: 100%;
+    height: 100px;                     /* fixed preview height */
+    object-fit: cover;
+  }
+  
+  .card .title{
+    display: block;
+    padding: .75rem 1rem 1rem;
+    font: 600 1.5rem/1.3 system-ui, sans-serif;
+    color: var(--bg);
+  }
+  
+  /* subtle lift on hover / focus */
+  .card:hover,
+  .card:focus-visible{
+    transform: translateY(-6px);
+    box-shadow: 0 10px 24px rgba(0,0,0,.25);
+  }
+  
+  /* optional: fade-in effect */
+  @media (prefers-reduced-motion:no-preference){
+    .card{ opacity: 0; animation: fadeUp .6s ease forwards; }
+    .card:nth-child(2){ animation-delay: .05s; }
+    .card:nth-child(3){ animation-delay: .1s; }
+  }
+  
+  @keyframes fadeUp{
+    from{ opacity:0; transform:translateY(12px); }
+    to  { opacity:1; transform:none; }
+  }
+  
+  
+  /* ---------- footer ---------- */
+  .site-footer{
+    text-align:center;
+    font-size:.875rem;
+    padding:2rem 0 1.5rem;
+    opacity:.6;
+    position:fixed;
+    bottom:1rem;
+  }
+  /* --- visually hidden helper (keeps semantic list) --- */
+.sr-only{
+    position:fixed!important;
+    width:1px;height:1px;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);
+    white-space:nowrap;border:0;padding:0;
+  }
+  
+  /* --- forest floor --- */
+  #forest{
+    position:fixed;
+    top:-70rem;                      /* start further up …              */
+    height:calc(100% + 80rem);       /* …and grow by +20 rem on top+bottom */
+    left:0; right:0;
+    background:url("./pics/forest_stump_thin.jpg") center/cover no-repeat;
+    transition:transform 1.5s ease;
+  }
+  
+  /* slide down into the normal viewport */
+  #forest.shift{ transform:translateY(40rem); }
+  #forest .projects .label{
+    position: relative;
+    right: 5rem;
+  }
+#hero:hover #btn-ghost,
+#btn-ghost:focus-within #btn-ghost{transform:scale(1.15)}
+#work:hover #work-btn-ghost,
+#work-btn-ghost:focus-within #work-btn-ghost{transform:scale(0.87)}
